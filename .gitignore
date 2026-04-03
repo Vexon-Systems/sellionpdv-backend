@@ -1,3 +1,24 @@
+### Security & Environment ###
+.env
+.env.*
+*.env
+*.key
+*.pem
+application-secret.properties
+
+### Logs ###
+*.log
+logs/
+
+### OS specific files ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
