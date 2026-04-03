@@ -21,28 +21,36 @@ public class SecurityFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-        throws ServletException, IOException {
+            throws ServletException, IOException {
 
         var token = this.recoverToken(request);
 
-        if (token != null) {
-            var email = tokenService.validarToken(token);
-            var usuario = usuarioRepository.findByEmailWithTenant(email);
+        try {
+            if (token != null) {
+                var email = tokenService.validarToken(token);
+                var usuario = usuarioRepository.findByEmailWithTenant(email);
 
-            if (usuario.isPresent()) {
-                var userDetais = org.springframework.security.core.userdetails.User
-                        .withUsername(usuario.get().getEmail())
-                        .password(usuario.get().getSenhaHash())
-                        .roles(usuario.get().getRole().replace("ROLE_", ""))
-                        .build();
+                if (usuario.isPresent()) {
+                    var userDetails = org.springframework.security.core.userdetails.User
+                            .withUsername(usuario.get().getEmail())
+                            .password(usuario.get().getSenhaHash())
+                            .roles(usuario.get().getRole().replace("ROLE_", ""))
+                            .build();
 
-                var authentication = new UsernamePasswordAuthenticationToken(userDetais, null, userDetais.getAuthorities());
+                    var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    // Armazenamento do ID do Tenant na Thread do servidor
+                    TenantContext.setCurrentTenant(usuario.get().getTenant().getId());
+                }
             }
-        }
 
-        filterChain.doFilter(request, response);
+            filterChain.doFilter(request, response);
+
+        } finally {
+            // Sempre limpar o cofre no final da requisição para não vazar
+            TenantContext.clear();
+        }
     }
 
     private String recoverToken(HttpServletRequest request) {
