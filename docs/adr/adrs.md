@@ -141,3 +141,52 @@
    
 **Trade-offs:** Deixa de usar a extensão exata `.env`, mas ganha 100% de compatibilidade com qualquer IDE sem configuração extra. 
 Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo esses valores normalmente.
+
+## ADR 011: Estratégia de Testes Unitários
+
+**Data:** 04/04/2026
+
+**Contexto:** Garantir a qualidade e a inviolabilidade das regras de negócio sem desacelerar a entrega do MVP.
+
+**Decisão:** 
+1. Focar os testes unitários nas classes da camada **Service** (onde mora o lucro e a segurança do sistema).
+2. Utilizar **JUnit 5** como motor de testes e **Mockito** para simular (mockar) o Banco de Dados.
+3. Não testar Controllers ou Repositories triviais neste primeiro momento (focaremos no comportamento da regra de negócio, isolado do framework web).
+   
+**Trade-offs:** Testes puramente unitários não garantem que a requisição HTTP inteira funciona (para isso servem os testes de integração), mas rodam em milissegundos e blindam a lógica matemática e as validações (ex: Zero Trust) de forma extremamente barata e rápida.
+
+## ADR 012: Modelagem do Domínio de Modificadores (Agregação)
+
+**Data:** 04/04/2026
+
+**Contexto:** Precisamos mapear as tabelas `grupos_modificadores` e `opcoes_modificadores`.
+
+**Decisão:** 
+1. Adotar o padrão de Raiz de Agregação (Aggregate Root). O `GrupoModificador` gerenciará a lista de `OpcaoModificador` através de um relacionamento `@OneToMany` com `CascadeType.ALL` e `orphanRemoval = true`.
+2. A entidade `OpcaoModificador` receberá o filtro de Soft Delete (`@SQLRestriction`), pois possui a coluna `ativo` no script SQL. A entidade `GrupoModificador` **não** receberá, pois o script original não previu essa coluna para ela.
+3. Ambas recebem o `@TenantId` inviolável.
+   
+**Trade-offs:** Centralizar o salvamento no Grupo facilita a transação (salvamos o grupo e as opções de uma vez só), mas exige cuidado no Frontend para enviar o JSON (Payload) completo ao criar ou editar um grupo.
+
+## ADR 013: DTOs Aninhados e Persistência de Agregados
+
+**Data:** 04/04/2026
+
+**Contexto:** Grupos e Opções de Modificadores são interdependentes. Criar uma opção sem um grupo é impossível no nosso domínio.
+
+**Decisão:** 
+1. Utilizar DTOs aninhados (uma lista de `OpcaoRequestDTO` dentro do `GrupoRequestDTO`).
+2. O Service será responsável por converter esse grafo de DTOs para o grafo de Entidades, utilizando os métodos de sincronização (`adicionarOpcao`) para garantir que o `grupo_id` seja preenchido corretamente em cada opção antes de salvar.
+   
+*Trade-offs:** O payload do POST fica ligeiramente maior, mas reduzimos o número de pedidos ao servidor (em vez de 1 pedido para o grupo e 5 para as opções, fazemos apenas 1 pedido atómico).
+
+## ADR 014: Modelagem da Entidade Produto e Relacionamentos
+
+**Data:** 04/04/2026
+
+**Contexto:** O Produto é a entidade central do Catálogo. Ele precisa pertencer a uma categoria e pode ter múltiplos grupos de modificadores (ex: Um "Açaí 500ml" tem o grupo "Tamanho" e "Complementos").
+
+**Decisão:** 
+1. `Produto` -> `Categoria` será `@ManyToOne` (Obrigatório).
+2. `Produto` -> `GrupoModificador` será `@ManyToMany` com uma tabela de ligação (JoinTable) `produto_grupos_modificadores`. Usaremos `Set` em vez de `List` para garantir que o mesmo grupo não seja adicionado duas vezes no mesmo produto.
+3. Aplicaremos o `@SQLRestriction("ativo = true")` para garantir a exclusão lógica (Soft Delete), já que produtos não devem ser apagados fisicamente para não quebrar o histórico de vendas.
