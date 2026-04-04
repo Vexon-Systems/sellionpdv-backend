@@ -23,6 +23,7 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) throws Exception {
         // Se já existe algum usuário no banco não fazemos nada para não duplicar
         if (usuarioRepository.count() > 0) {
+            System.out.println("Usuário de teste já criado! Use para entrar: admin@sellion.com.br / admin123");
             return;
         }
 
