@@ -2,11 +2,13 @@ package vexon.sellionpdv.produto;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.TenantId;
 import vexon.sellionpdv.categoria.Categoria;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -40,12 +42,12 @@ public class Produto {
     private BigDecimal precoBase;
 
     @Builder.Default
-    @Column(name = "custo_estimado")
-    private BigDecimal custoEstimado = BigDecimal.ZERO;
-
-    @Builder.Default
     @Column(name = "ativo", nullable = false)
     private Boolean ativo = true;
+
+    @CreationTimestamp
+    @Column(name = "criado_em", nullable = false, updatable = false)
+    private LocalDateTime criadoEm;
 
     @Builder.Default
     @OneToMany(mappedBy = "produto", cascade = CascadeType.ALL, orphanRemoval = true)

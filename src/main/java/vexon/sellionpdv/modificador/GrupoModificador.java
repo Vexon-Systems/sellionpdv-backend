@@ -2,6 +2,7 @@ package vexon.sellionpdv.modificador;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.TenantId;
 
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @Entity
 @Table(name = "grupos_modificadores")
+@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -27,6 +29,10 @@ public class GrupoModificador {
 
     @Column(name = "nome", nullable = false)
     private String nome;
+
+    @Builder.Default
+    @Column(name = "ativo", nullable = false)
+    private Boolean ativo = true;
 
     @Builder.Default
     @OneToMany(mappedBy = "grupo", cascade = CascadeType.ALL, orphanRemoval = true)

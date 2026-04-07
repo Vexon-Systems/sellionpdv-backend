@@ -13,8 +13,8 @@ public record ProdutoRequestDTO(
         @PositiveOrZero(message = "O preço não pode ser negativo")
         BigDecimal precoBase,
 
-        @PositiveOrZero(message = "O custo não pode ser negativo")
-        BigDecimal custoEstimado,
+        @NotNull(message = "O status é obrigatório")
+        Boolean ativo,
 
         @NotNull(message = "A categoria é obrigatória")
         Long categoriaId

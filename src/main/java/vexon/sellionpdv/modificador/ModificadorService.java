@@ -42,6 +42,57 @@ public class ModificadorService {
                 .toList();
     }
 
+    @Transactional
+    public GrupoResponseDTO atualizarGrupo(Long id, GrupoRequestDTO request) {
+        GrupoModificador grupo = grupoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
+
+        // 1. Atualiza o nome do Grupo
+        if (!grupo.getNome().equalsIgnoreCase(request.nome()) &&
+                grupoRepository.existsByNomeIgnoreCase(request.nome())) {
+            throw new RuntimeException("Já existe um grupo de modificadores com este nome.");
+        }
+        grupo.setNome(request.nome());
+
+        grupo.getOpcoes().forEach(op -> op.setAtivo(false));
+
+        for (OpcaoRequestDTO opRequest : request.opcoes()) {
+
+            OpcaoModificador opcaoExistente = grupo.getOpcoes().stream()
+                    .filter(op -> op.getNome().equalsIgnoreCase(opRequest.nome()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (opcaoExistente != null) {
+                opcaoExistente.setPrecoAdicional(opRequest.precoAdicional());
+                opcaoExistente.setAtivo(true);
+            } else {
+                OpcaoModificador novaOpcao = OpcaoModificador.builder()
+                        .nome(opRequest.nome())
+                        .precoAdicional(opRequest.precoAdicional())
+                        .grupo(grupo)
+                        .ativo(true)
+                        .build();
+                grupo.getOpcoes().add(novaOpcao);
+            }
+        }
+
+        return mapToResponse(grupoRepository.save(grupo));
+    }
+
+    @Transactional
+    public void deletarGrupo(Long id) {
+        GrupoModificador grupo = grupoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
+
+        // Soft Delete
+        grupo.setAtivo(false);
+
+        // Soft Delete em Cascata
+        grupo.getOpcoes().forEach(op -> op.setAtivo(false));
+    }
+
+
     private GrupoResponseDTO mapToResponse(GrupoModificador grupo) {
         List<OpcaoResponseDTO> opcoesDto = grupo.getOpcoes().stream()
                 .map(o -> new OpcaoResponseDTO(o.getId(), o.getNome(), o.getPrecoAdicional()))
