@@ -23,6 +23,10 @@ public class Categoria {
 
     @Column(name = "nome", nullable = false)
     private String nome;
+
+    @Builder.Default
+    @Column(name = "ativo", nullable = false)
+    private Boolean ativo = true;
 }
 
 

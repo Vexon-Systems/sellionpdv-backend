@@ -24,4 +24,17 @@ public class ModificadorController {
     public ResponseEntity<List<GrupoResponseDTO>> listar() {
         return ResponseEntity.ok(modificadorService.listarGrupos());
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<GrupoResponseDTO> atualizar(
+            @PathVariable Long id,
+            @RequestBody @Valid GrupoRequestDTO request) {
+        return ResponseEntity.ok(modificadorService.atualizarGrupo(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deletar(@PathVariable Long id) {
+        modificadorService.deletarGrupo(id);
+        return ResponseEntity.noContent().build();
+    }
 }

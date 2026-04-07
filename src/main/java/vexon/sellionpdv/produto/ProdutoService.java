@@ -8,7 +8,7 @@ import vexon.sellionpdv.categoria.CategoriaRepository;
 import vexon.sellionpdv.produto.dto.ProdutoRequestDTO;
 import vexon.sellionpdv.produto.dto.ProdutoResponseDTO;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -29,19 +29,61 @@ public class ProdutoService {
         Produto produto = Produto.builder()
                 .nome(request.nome())
                 .precoBase(request.precoBase())
-                // Se o frontend não mandar custo estimado, salvamos como zero
-                .custoEstimado(request.custoEstimado() != null ? request.custoEstimado() : BigDecimal.ZERO)
+                .ativo(request.ativo())
                 .categoria(categoria)
                 .build();
 
-        Produto salvo = produtoRepository.save(produto);
+        return mapToResponse(produtoRepository.save(produto));
+    }
 
+    public List<ProdutoResponseDTO> listarProdutos() {
+        return produtoRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    public ProdutoResponseDTO buscarPorId(Long id) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
+        return mapToResponse(produto);
+    }
+
+    @Transactional
+    public ProdutoResponseDTO atualizarProduto(Long id, ProdutoRequestDTO request) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
+
+        if (!produto.getNome().equalsIgnoreCase(request.nome()) &&
+                produtoRepository.existsByNomeIgnoreCase(request.nome())) {
+            throw new RuntimeException("Já existe outro produto cadastrado com este nome.");
+        }
+
+        Categoria categoria = categoriaRepository.findById(request.categoriaId())
+                .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
+
+        produto.setNome(request.nome());
+        produto.setPrecoBase(request.precoBase());
+        produto.setAtivo(request.ativo());
+        produto.setCategoria(categoria);
+
+        return mapToResponse(produto);
+    }
+
+    @Transactional
+    public void inativarProduto(Long id) {
+        Produto produto = produtoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
+
+        produto.setAtivo(false);
+    }
+
+    private ProdutoResponseDTO mapToResponse(Produto produto) {
         return new ProdutoResponseDTO(
-                salvo.getId(),
-                salvo.getNome(),
-                salvo.getPrecoBase(),
-                salvo.getCustoEstimado(),
-                salvo.getCategoria().getId()
+                produto.getId(),
+                produto.getNome(),
+                produto.getPrecoBase(),
+                produto.getAtivo(),
+                produto.getCategoria().getId()
         );
     }
 }

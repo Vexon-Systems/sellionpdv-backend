@@ -6,6 +6,6 @@ public record ProdutoResponseDTO(
         Long id,
         String nome,
         BigDecimal precoBase,
-        BigDecimal custoEstimado,
+        Boolean ativo,
         Long categoriaId
 ) {}
