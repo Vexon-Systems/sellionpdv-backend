@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
+import java.util.List;
 
 public record ProdutoRequestDTO(
         @NotBlank(message = "O nome do produto é obrigatório")
@@ -17,5 +18,7 @@ public record ProdutoRequestDTO(
         Boolean ativo,
 
         @NotNull(message = "A categoria é obrigatória")
-        Long categoriaId
+        Long categoriaId,
+
+        List<ProdutoGrupoRequestDTO> gruposModificadores
 ) {}
