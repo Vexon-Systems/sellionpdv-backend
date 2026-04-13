@@ -1,4 +1,4 @@
-## ADR 001: Estratégia de Isolamento Multi-Tenant e Soft Delete (Fundação)
+### ADR 001: Estratégia de Isolamento Multi-Tenant e Soft Delete (Fundação)
 
 **Data:** 01/04/2026
 
@@ -16,8 +16,9 @@
 * O uso do `@SQLRestriction` torna um pouco mais verboso buscar dados inativos (exige *native queries* ou bypass específico no EntityManager), mas priorizamos a segurança *Default Deny*.
 * Não usar `@TenantId` no `Usuario` significa que o isolamento desta entidade específica dependerá da lógica do Service/Repository, mas destrava o fluxo de Login perfeitamente. (As demais entidades operacionais como Vendas e Caixas usarão a barreira automática do Hibernate).
 
+---
 
-## ADR 002: Padrão de Repositories e Consultas
+### ADR 002: Padrão de Repositories e Consultas
 
 **Data:** 01/04/2026
 
@@ -32,8 +33,9 @@
 **Trade-offs:** 
 * O Spring Data facilita a escrita, mas exige cuidado com o problema de N+1. Resolveremos isso usando `JOIN FETCH` em consultas específicas de listagem.
 
+---
 
-## ADR 003: Estrutura de Diretórios - Package-by-Feature
+### ADR 003: Estrutura de Diretórios - Package-by-Feature
 
 **Data:** 01/04/2026
 
@@ -47,8 +49,9 @@
 * **Vantagem:** Alta coesão. É muito mais fácil para um desenvolvedor novo entender onde está o código de "Vendas".
 * **Desvantagem:** Exige disciplina para evitar acoplamento excessivo entre as features (ex: `VendaService` chamando diretamente o `ProdutoRepository` em vez do `ProdutoService`, embora aceitável em cenários de leitura simples, deve ser monitorado).
 
+---
 
-## ADR 004: Configuração Base de Segurança e Hash de Senhas
+### ADR 004: Configuração Base de Segurança e Hash de Senhas
 
 **Data:** 01/04/2026
 
@@ -61,7 +64,9 @@
    **Trade-offs:** O Argon2 consome mais memória e CPU (intencionalmente, para evitar ataques de força bruta) em comparação ao BCrypt.
    **Dependência Extra:** O Argon2 requer a biblioteca Bouncy Castle no `pom.xml` ou `build.gradle` (ex: `org.bouncycastle:bcprov-jdk18on`).
 
-## ADR 005: Estratégia de Geração e Assinatura de Tokens (JWT)
+---
+
+### ADR 005: Estratégia de Geração e Assinatura de Tokens (JWT)
 
 **Data:** 02/04/2026
 
@@ -73,7 +78,9 @@
 * **Vantagem:** O Backend não precisa fazer uma query extra no banco de dados só para saber de qual Tenant o usuário é; a informação viaja segura dentro do Token.
 * **Atenção:** O Token não é criptografado, apenas *assinado*. Qualquer um pode ler o conteúdo dele, mas só o nosso Backend consegue verificar se ele é válido e se não foi adulterado. (Por isso nunca colocamos senhas dentro do JWT).
 
-## ADR 006: Intercepção de Requisições e Contexto de Segurança
+---
+
+### ADR 006: Intercepção de Requisições e Contexto de Segurança
 
 **Data:** 02/04/2026
 
@@ -90,7 +97,9 @@
 - **Vantagem:** Centraliza a segurança. Os Controllers não precisam se preocupar se o usuário está logado ou a qual Tenant ele pertence.
 - **Custo:** Cada requisição protegida fará uma consulta ao banco para validar o usuário. (Poderíamos usar cache no futuro, mas para o MVP, a consistência é prioridade).
 
-## ADR 007: Gestão de Segredos e Variáveis de Ambiente
+---
+
+### ADR 007: Gestão de Segredos e Variáveis de Ambiente
 
 **Data:** 03/04/2026
 
@@ -104,7 +113,9 @@
    
 **Trade-offs:** Adiciona uma pequena dependência no projeto, mas zera o risco de vazamento acidental e facilita o deploy (na nuvem, basta cadastrar essas mesmas variáveis no painel da AWS, Heroku, etc).
 
-## ADR 008: Isolamento Multi-Tenant Automático 
+---
+
+### ADR 008: Isolamento Multi-Tenant Automático 
 
 **Data:** 03/04/2026
 
@@ -116,7 +127,9 @@
    
 **Trade-offs:** Torna o fluxo um pouco "mágico" (escondido), o que pode confundir devs juniores debugando o SQL, mas reduz o erro humano de vazamento de dados a praticamente zero.
 
-## ADR 009: Mapeamento de Entidades Operacionais com @TenantId
+---
+
+### ADR 009: Mapeamento de Entidades Operacionais com @TenantId
 
 **Data:** 03/04/2026
 
@@ -127,7 +140,9 @@
 **Trade-offs:** 
 * **Vantagem:** Com o `TenantIdentifierResolver` rodando nos bastidores, o simples ato de colocar essa anotação no atributo da classe faz com que o Hibernate injete `tenant_id = X` em TODOS os `SELECT`, `INSERT`, `UPDATE` e `DELETE` daquela entidade. O desenvolvedor não precisa (e nem deve) passar o tenantId manualmente via DTO ou Service.
 
-## ADR 010: Gestão Nativa de Segredos via Properties
+---
+
+### ADR 010: Gestão Nativa de Segredos via Properties
 
 **Data:** 03/04/2026
 
@@ -142,7 +157,9 @@
 **Trade-offs:** Deixa de usar a extensão exata `.env`, mas ganha 100% de compatibilidade com qualquer IDE sem configuração extra. 
 Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo esses valores normalmente.
 
-## ADR 011: Estratégia de Testes Unitários
+---
+
+### ADR 011: Estratégia de Testes Unitários
 
 **Data:** 04/04/2026
 
@@ -155,7 +172,9 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
    
 **Trade-offs:** Testes puramente unitários não garantem que a requisição HTTP inteira funciona (para isso servem os testes de integração), mas rodam em milissegundos e blindam a lógica matemática e as validações (ex: Zero Trust) de forma extremamente barata e rápida.
 
-## ADR 012: Modelagem do Domínio de Modificadores (Agregação)
+---
+
+### ADR 012: Modelagem do Domínio de Modificadores (Agregação)
 
 **Data:** 04/04/2026
 
@@ -168,7 +187,9 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
    
 **Trade-offs:** Centralizar o salvamento no Grupo facilita a transação (salvamos o grupo e as opções de uma vez só), mas exige cuidado no Frontend para enviar o JSON (Payload) completo ao criar ou editar um grupo.
 
-## ADR 013: DTOs Aninhados e Persistência de Agregados
+---
+
+### ADR 013: DTOs Aninhados e Persistência de Agregados
 
 **Data:** 04/04/2026
 
@@ -180,13 +201,65 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
    
 *Trade-offs:** O payload do POST fica ligeiramente maior, mas reduzimos o número de pedidos ao servidor (em vez de 1 pedido para o grupo e 5 para as opções, fazemos apenas 1 pedido atómico).
 
-## ADR 014: Modelagem da Entidade Produto e Relacionamentos
+---
 
-**Data:** 04/04/2026
+### ADR 014: Modelagem da Entidade Produto e Relacionamentos (REVISADA)
+**Data:** 13/04/2026
 
-**Contexto:** O Produto é a entidade central do Catálogo. Ele precisa pertencer a uma categoria e pode ter múltiplos grupos de modificadores (ex: Um "Açaí 500ml" tem o grupo "Tamanho" e "Complementos").
+**Contexto:** O Produto é a entidade central do Catálogo. O script do Supabase revelou que a tabela de ligação `produto_grupos_modificadores` não é simples; ela possui regras de negócio cruciais (`tipo_escolha`, `min_opcoes`, `max_opcoes`).
 
 **Decisão:** 
-1. `Produto` -> `Categoria` será `@ManyToOne` (Obrigatório).
-2. `Produto` -> `GrupoModificador` será `@ManyToMany` com uma tabela de ligação (JoinTable) `produto_grupos_modificadores`. Usaremos `Set` em vez de `List` para garantir que o mesmo grupo não seja adicionado duas vezes no mesmo produto.
-3. Aplicaremos o `@SQLRestriction("ativo = true")` para garantir a exclusão lógica (Soft Delete), já que produtos não devem ser apagados fisicamente para não quebrar o histórico de vendas.
+1. Abandonamos o `@ManyToMany` simples.
+2. Criamos uma **Entidade Intermediária** chamada `ProdutoGrupoModificador` com uma chave composta (`@EmbeddedId`).
+3. O relacionamento passa a ser `@OneToMany` do Produto para a entidade intermediária, e `@ManyToOne` da intermediária para o Grupo.
+4. Mantemos o `@SQLRestriction("ativo = true")` em todas as tabelas do catálogo (Produtos, Categorias, Modificadores) para garantir o Soft Delete.
+
+---
+
+### ADR 015: Stack de Documentação da API (OpenAPI)
+**Data:** 13/04/2026
+
+**Contexto:** Precisamos gerar a documentação visual da API e permitir testes via interface, mas o projeto utiliza Spring Boot 3/4, onde bibliotecas antigas como o SpringFox (Swagger 2) deixaram de funcionar.
+
+**Decisão:**
+1. Adotamos o **SpringDoc OpenAPI 3.x** (`springdoc-openapi-starter-webmvc-ui`).
+2. A documentação ficará acessível em `/swagger-ui/index.html`.
+3. Configuramos o `OpenApiConfig` para injetar globalmente o esquema de segurança (Bearer Token / JWT), permitindo que o Frontend ou QA teste as rotas de Multi-Tenant diretamente pelo navegador sem tomar erro 403.
+4. As rotas do Swagger foram adicionadas à *whitelist* do `SecurityConfig`.
+
+---
+
+### ADR 016: Padronização da Estratégia de Deleção (Soft Delete)
+**Data:** 13/04/2026
+
+**Contexto:** Ao inativar categorias e modificadores, precisamos decidir entre o uso de booleanos (`ativo`) ou carimbos de tempo (`deleted_at`).
+
+**Decisão:**
+1. Escolhemos a abordagem **Boolean (`ativo = true/false`)**.
+2. **Motivo:** O script SQL original do Supabase já utilizava este padrão nas tabelas `produtos` e `tenants`. A decisão mantém a consistência arquitetural do banco.
+3. Executamos um script SQL de `ALTER TABLE` para injetar a coluna `ativo BOOLEAN NOT NULL DEFAULT true` nas tabelas `categorias` e `grupos_modificadores`, padronizando todo o Módulo de Catálogo.
+
+---
+
+### ADR 017: Estrutura do Payload de Catálogo (Árvore JSON)
+**Data:** 13/04/2026
+
+**Contexto:** O Frontend do PDV precisa montar o ecrã de vendas de forma extremamente rápida. Fazer dezenas de chamadas HTTP (uma para o produto, outra para os grupos, outra para as opções) geraria latência no momento da venda.
+
+**Decisão:**
+1. A rota `GET /api/produtos` retornará uma **Árvore JSON Profunda (Nested)**.
+2. O DTO de resposta do Produto engloba a lista de Grupos, que por sua vez engloba a lista de Opções Ativas.
+3. **Trade-off aceito:** O payload do `GET` será maior em KBs, mas permite que o Frontend faça o cache completo do catálogo na memória (RAM) no início do turno, garantindo zero latência na navegação do utilizador durante as vendas.
+
+---
+
+### ADR 018: Estratégia de Sincronização JPA (Evitando Conflito de Persistência)
+**Data:** 13/04/2026
+
+**Contexto:** Ao atualizar os modificadores de um Produto (`PUT`), o uso de `.clear()` na lista de relacionamentos com chave composta gerava o erro de "Conflito de Contexto de Persistência" (o Hibernate tentava deletar e recriar a mesma chave composta na mesma transação).
+
+**Decisão:**
+1. Abandonamos a estratégia de "Destruir e Recriar" (`.clear()`).
+2. Adotamos o **Motor de Sincronização Inteligente (Merge)** no `ProdutoService`.
+3. O código agora compara ativamente o que veio no JSON contra o que está no Banco de Dados e decide granularmente se deve: Remover (o que sumiu do JSON), Atualizar (o que já existia) ou Adicionar (o que é novo).
+4. Essa abordagem evita erros 500 silenciosos do JPA e otimiza a quantidade de queries geradas no banco.

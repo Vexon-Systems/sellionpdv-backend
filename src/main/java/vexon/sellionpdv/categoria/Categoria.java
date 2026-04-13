@@ -2,6 +2,7 @@ package vexon.sellionpdv.categoria;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.TenantId;
 
 @Entity
@@ -10,6 +11,7 @@ import org.hibernate.annotations.TenantId;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@SQLRestriction("ativo = true")
 @EqualsAndHashCode(of = "id")
 @Table(name = "categorias")
 public class Categoria {
