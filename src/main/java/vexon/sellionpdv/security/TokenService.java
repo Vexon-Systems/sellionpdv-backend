@@ -43,7 +43,7 @@ public class TokenService {
                     .withIssuer("SellionPDV")
                     .build()
                     .verify(token)
-                    .getSubject(); // Pega o email guardado
+                    .getSubject();
         } catch (JWTVerificationException exception) {
             return "";
         }

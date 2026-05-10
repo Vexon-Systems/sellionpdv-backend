@@ -91,35 +91,28 @@ public class ProdutoService {
 
     private void sincronizarGruposNoProduto(Produto produto, List<ProdutoGrupoRequestDTO> gruposRequest) {
         if (gruposRequest == null || gruposRequest.isEmpty()) {
-            // Se o frontend mandou vazio, apagamos tudo de forma segura
             produto.getGruposModificadores().clear();
             return;
         }
 
-        // 1 - Extrair os IDs que vieram do Frontend
         List<Long> idsRecebidos = gruposRequest.stream()
                 .map(ProdutoGrupoRequestDTO::grupoId)
                 .toList();
 
-        // 2 - REMOVER: Tirar da lista as relações que não vieram no JSON
         produto.getGruposModificadores().removeIf(relacao ->
                 !idsRecebidos.contains(relacao.getGrupo().getId()));
 
-        // 3 - ATUALIZAR ou ADICIONAR
         for (ProdutoGrupoRequestDTO dto : gruposRequest) {
-            // Procura se essa relação já existe na memória do Hibernate
             ProdutoGrupoModificador relacaoExistente = produto.getGruposModificadores().stream()
                     .filter(rel -> rel.getGrupo().getId().equals(dto.grupoId()))
                     .findFirst()
                     .orElse(null);
 
             if (relacaoExistente != null) {
-                // ATUALIZAR
                 relacaoExistente.setTipoEscolha(dto.tipoEscolha());
                 relacaoExistente.setMinOpcoes(dto.minOpcoes() != null ? dto.minOpcoes() : 0);
                 relacaoExistente.setMaxOpcoes(dto.maxOpcoes() != null ? dto.maxOpcoes() : 1);
             } else {
-                // ADICIONAR NOVA RELAÇÃO
                 GrupoModificador grupo = grupoRepository.findById(dto.grupoId())
                         .orElseThrow(() -> new RuntimeException("Grupo não encontrado: " + dto.grupoId()));
 
@@ -139,7 +132,6 @@ public class ProdutoService {
     }
 
     private ProdutoResponseDTO mapToResponse(Produto produto) {
-        // Constrói a árvore de Modificadores para enviar ao Frontend
         List<ProdutoGrupoResponseDTO> gruposDTO = produto.getGruposModificadores().stream()
                 .map(relacao -> {
                     var grupo = relacao.getGrupo();
