@@ -47,8 +47,9 @@ public class SecurityFilter extends OncePerRequestFilter {
 
             filterChain.doFilter(request, response);
 
+
         } finally {
-            // Sempre limpar o cofre no final da requisição para não vazar
+            // Sempre limpa o cofre no final da requisição para não vazar
             TenantContext.clear();
         }
     }

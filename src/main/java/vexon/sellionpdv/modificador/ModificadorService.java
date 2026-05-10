@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.modificador.dto.*;
+import vexon.sellionpdv.produto.Produto;
+import vexon.sellionpdv.produto.ProdutoRepository;
 
 import java.util.List;
 
@@ -12,6 +14,7 @@ import java.util.List;
 public class ModificadorService {
 
     private final GrupoModificadorRepository grupoRepository;
+    private final ProdutoRepository produtoRepository;
 
     @Transactional
     public GrupoResponseDTO criarGrupo(GrupoRequestDTO request) {
@@ -47,7 +50,6 @@ public class ModificadorService {
         GrupoModificador grupo = grupoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
 
-        // 1. Atualiza o nome do Grupo
         if (!grupo.getNome().equalsIgnoreCase(request.nome()) &&
                 grupoRepository.existsByNomeIgnoreCase(request.nome())) {
             throw new RuntimeException("Já existe um grupo de modificadores com este nome.");
@@ -85,11 +87,18 @@ public class ModificadorService {
         GrupoModificador grupo = grupoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
 
-        // Soft Delete
-        grupo.setAtivo(false);
+        List<Produto> produtosAfetados = produtoRepository.findByGruposModificadoresId(id);
 
-        // Soft Delete em Cascata
+        produtosAfetados.forEach(produto -> {
+            produto.getGruposModificadores().remove(grupo);
+        });
+
+        produtoRepository.saveAll(produtosAfetados);
+
+        grupo.setAtivo(false);
         grupo.getOpcoes().forEach(op -> op.setAtivo(false));
+
+        grupoRepository.save(grupo);
     }
 
 
