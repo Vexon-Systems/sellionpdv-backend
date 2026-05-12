@@ -20,5 +20,8 @@ public record ProdutoRequestDTO(
         @NotNull(message = "A categoria é obrigatória")
         Long categoriaId,
 
+        String imagemUrl,
+
         List<ProdutoGrupoRequestDTO> gruposModificadores
+
 ) {}

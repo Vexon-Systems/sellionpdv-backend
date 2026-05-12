@@ -3,11 +3,17 @@ package vexon.sellionpdv.produto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.categoria.Categoria;
 import vexon.sellionpdv.categoria.CategoriaRepository;
 import vexon.sellionpdv.modificador.GrupoModificador;
 import vexon.sellionpdv.modificador.GrupoModificadorRepository;
 import vexon.sellionpdv.produto.dto.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.UUID;
 
 import java.util.List;
 
@@ -35,6 +41,7 @@ public class ProdutoService {
                 .precoBase(request.precoBase())
                 .ativo(request.ativo())
                 .categoria(categoria)
+                .imagemUrl(request.imagemUrl())
                 .build();
 
         // Passa a lista inicial para o motor criar as relações
@@ -73,6 +80,7 @@ public class ProdutoService {
         produto.setPrecoBase(request.precoBase());
         produto.setAtivo(request.ativo());
         produto.setCategoria(categoria);
+        produto.setImagemUrl(request.imagemUrl());
 
         // Em vez de usar o clear nós usamos a sincronização
         sincronizarGruposNoProduto(produto, request.gruposModificadores());
@@ -162,7 +170,37 @@ public class ProdutoService {
                 produto.getPrecoBase(),
                 produto.getAtivo(),
                 produto.getCategoria().getId(),
+                produto.getImagemUrl(),
                 gruposDTO
         );
+    }
+
+    public String uploadImagem(MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                throw new RuntimeException("Arquivo vazio.");
+            }
+
+            String fileName = UUID.randomUUID() + "-" + file.getOriginalFilename();
+
+            Path uploadPath = Paths.get("uploads");
+
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            Path filePath = uploadPath.resolve(fileName);
+
+            Files.copy(
+                    file.getInputStream(),
+                    filePath,
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+
+            return "http://localhost:8080/uploads/" + fileName;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao fazer upload da imagem.");
+        }
     }
 }
