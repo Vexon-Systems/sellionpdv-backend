@@ -45,6 +45,9 @@ public class Produto {
     @Column(name = "ativo", nullable = false)
     private Boolean ativo = true;
 
+    @Column(name = "imagem_url")
+    private String imagemUrl;
+
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)
     private LocalDateTime criadoEm;
@@ -52,4 +55,6 @@ public class Produto {
     @Builder.Default
     @OneToMany(mappedBy = "produto", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<ProdutoGrupoModificador> gruposModificadores = new HashSet<>();
+
+
 }

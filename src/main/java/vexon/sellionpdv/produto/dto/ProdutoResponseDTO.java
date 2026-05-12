@@ -9,5 +9,7 @@ public record ProdutoResponseDTO(
         BigDecimal precoBase,
         Boolean ativo,
         Long categoriaId,
+        String imagemUrl,
         List<ProdutoGrupoResponseDTO> gruposModificadores
+
 ) {}

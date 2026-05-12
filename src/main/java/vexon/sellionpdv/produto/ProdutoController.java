@@ -7,8 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.produto.dto.ProdutoRequestDTO;
 import vexon.sellionpdv.produto.dto.ProdutoResponseDTO;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("api/produtos")
@@ -41,5 +43,16 @@ public class ProdutoController {
     public ResponseEntity<Void> deletar(@PathVariable Long id) {
         produtoService.inativarProduto(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/upload")
+    public ResponseEntity<Map<String, String>> uploadImagem(
+            @RequestParam("file") MultipartFile file
+    ) {
+        String url = produtoService.uploadImagem(file);
+
+        return ResponseEntity.ok(
+                Map.of("url", url)
+        );
     }
 }
