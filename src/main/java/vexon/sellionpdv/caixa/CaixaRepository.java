@@ -1,0 +1,9 @@
+package vexon.sellionpdv.caixa;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.Optional;
+
+public interface CaixaRepository extends JpaRepository<Caixa, Long> {
+    Optional<Caixa> findByStatus(String status);
+    boolean existsByStatus(String status);
+}
