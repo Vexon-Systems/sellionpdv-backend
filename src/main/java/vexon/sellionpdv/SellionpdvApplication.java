@@ -9,5 +9,4 @@ public class SellionpdvApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(SellionpdvApplication.class, args);
 	}
-
 }

@@ -35,7 +35,7 @@ class ProdutoServiceTest {
     void deveCriarProdutoComSucesso() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 1L
+                "Açaí 500ml", new BigDecimal("15.50"), true, 1L, null
         );
 
         Categoria categoriaSimulada = Categoria.builder().id(1L).nome("Açaí").build();
@@ -43,7 +43,7 @@ class ProdutoServiceTest {
                 .id(100L)
                 .nome("Açaí 500ml")
                 .precoBase(new BigDecimal("15.50"))
-                .custoEstimado(BigDecimal.ZERO)
+                .ativo(true)
                 .categoria(categoriaSimulada)
                 .build();
 
@@ -59,6 +59,7 @@ class ProdutoServiceTest {
         assertEquals(100L, response.id());
         assertEquals("Açaí 500ml", response.nome());
         assertEquals(new BigDecimal("15.50"), response.precoBase());
+        assertEquals(true, response.ativo());
 
         verify(produtoRepository, times(1)).save(any(Produto.class));
     }
@@ -68,7 +69,7 @@ class ProdutoServiceTest {
     void naoDeveCriarProdutoComNomeDuplicado() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 1L
+                "Açaí 500ml", new BigDecimal("15.50"), true, 1L, null
         );
 
         when(produtoRepository.existsByNomeIgnoreCase("Açaí 500ml")).thenReturn(true);
@@ -87,7 +88,7 @@ class ProdutoServiceTest {
     void naoDeveCriarProdutoComCategoriaInvalida() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 999L
+                "Açaí 500ml", new BigDecimal("15.50"), true, 999L, null
         );
 
         when(produtoRepository.existsByNomeIgnoreCase("Açaí 500ml")).thenReturn(false);
