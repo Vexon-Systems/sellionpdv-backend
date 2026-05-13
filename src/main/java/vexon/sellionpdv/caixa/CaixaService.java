@@ -3,63 +3,227 @@ package vexon.sellionpdv.caixa;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
-import java.time.LocalDateTime;
+import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.tenant.TenantRepository;
+import vexon.sellionpdv.venda.FormaPagamento;
+import vexon.sellionpdv.venda.Venda;
+
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Service
 public class CaixaService {
 
-    private final CaixaRepository repository;
+    private final CaixaRepository caixaRepository;
 
-    public CaixaService(CaixaRepository repository) {
-        this.repository = repository;
+    private final MovimentacaoCaixaRepository
+            movimentacaoRepository;
+
+    private final TenantRepository tenantRepository;
+
+    public CaixaService(
+            CaixaRepository caixaRepository,
+            MovimentacaoCaixaRepository movimentacaoRepository,
+            TenantRepository tenantRepository
+    ) {
+
+        this.caixaRepository = caixaRepository;
+        this.movimentacaoRepository =
+                movimentacaoRepository;
+        this.tenantRepository = tenantRepository;
     }
 
-    public CaixaResponseDTO buscarCaixaAtual() {
-        return repository.findByStatus("ABERTO")
-                .map(this::mapToResponseDTO)
-                .orElseThrow(() -> new RuntimeException("Nenhum caixa aberto encontrado."));
+    public Caixa buscarCaixaAtual() {
+
+        return caixaRepository.findByStatus(
+                        StatusCaixa.ABERTO
+                )
+                .orElseThrow(() ->
+                        new RuntimeException(
+                                "Nenhum caixa aberto encontrado para o tenant atual."
+                        )
+                );
     }
 
     @Transactional
-    public CaixaResponseDTO abrir(CaixaRequestDTO dto) {
-        if (repository.existsByStatus("ABERTO")) {
-            throw new RuntimeException("Não é permitido abrir um novo caixa enquanto houver um turno em aberto.");
-        }
+    public Caixa abrirCaixa(
+            CaixaRequestDTO dto
+    ) {
+
+        caixaRepository.findByStatus(
+                        StatusCaixa.ABERTO
+                )
+                .ifPresent(caixa -> {
+
+                    throw new RuntimeException(
+                            "Já existe um caixa aberto."
+                    );
+                });
+
+        Long tenantId =
+                TenantContext.getCurrentTenant();
+
+        Tenant tenant =
+                tenantRepository.findById(
+                                tenantId
+                        )
+                        .orElseThrow();
 
         Caixa caixa = new Caixa();
-        caixa.setStatus("ABERTO");
-        caixa.setSaldoInicial(dto.saldoInicial());
-        caixa.setDataAbertura(LocalDateTime.now());
 
-        Caixa salvo = repository.save(caixa);
-        return mapToResponseDTO(salvo);
+        caixa.setTenant(tenant);
+
+        caixa.setStatus(
+                StatusCaixa.ABERTO
+        );
+
+        caixa.setSaldoInicial(
+                dto.saldoInicial()
+        );
+
+        caixa.setDataAbertura(
+                OffsetDateTime.now()
+        );
+
+        return caixaRepository.save(caixa);
     }
 
     @Transactional
-    public CaixaResponseDTO fechar(CaixaFechamentoRequestDTO dto) {
-        Caixa caixa = repository.findByStatus("ABERTO")
-                .orElseThrow(() -> new RuntimeException("Erro ao fechar: Não existe caixa aberto para encerramento."));
+    public void registrarMovimentacao(
+            MovimentacaoCaixaRequestDTO dto
+    ) {
 
-        // Lógica de Auditoria: O Backend calcula a diferença (furo) entre o esperado e o informado
-        // Aqui você somaria (Saldo Inicial + Vendas - Sangrias + Reforços) para comparar
-        BigDecimal saldoEsperado = caixa.getSaldoInicial(); // Simplificado para este exemplo
-        BigDecimal furo = dto.saldoFinalInformado().subtract(saldoEsperado);
+        Caixa caixa =
+                buscarCaixaAtual();
 
-        caixa.setStatus("FECHADO");
-        caixa.setDataFechamento(LocalDateTime.now());
-        caixa.setSaldoFinalInformado(dto.saldoFinalInformado());
-        caixa.setFuroCaixa(furo);
+        MovimentacaoCaixa movimentacao =
+                new MovimentacaoCaixa();
 
-        return mapToResponseDTO(repository.save(caixa));
+        movimentacao.setTenant(
+                caixa.getTenant()
+        );
+
+        movimentacao.setCaixa(
+                caixa
+        );
+
+        movimentacao.setTipo(
+                dto.tipo()
+        );
+
+        movimentacao.setValor(
+                dto.valor()
+        );
+
+        movimentacao.setMotivo(
+                dto.motivo()
+        );
+
+        movimentacao.setDataMovimentacao(
+                OffsetDateTime.now()
+        );
+
+        movimentacaoRepository.save(
+                movimentacao
+        );
     }
 
-    private CaixaResponseDTO mapToResponseDTO(Caixa caixa) {
-        return new CaixaResponseDTO(
-                caixa.getId(),
-                caixa.getStatus(),
-                caixa.getDataAbertura(),
+    @Transactional
+    public FechamentoCaixaResponseDTO
+    fecharCaixa(
+            CaixaFechamentoRequestDTO dto
+    ) {
+
+        Caixa caixa =
+                buscarCaixaAtual();
+
+        List<MovimentacaoCaixa> movimentacoes =
+                movimentacaoRepository
+                        .findByCaixa(caixa);
+
+        BigDecimal totalReforcos =
+                movimentacoes.stream()
+                        .filter(m ->
+                                m.getTipo() ==
+                                        TipoMovimentacaoCaixa.REFORCO
+                        )
+                        .map(
+                                MovimentacaoCaixa::getValor
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal totalSangrias =
+                movimentacoes.stream()
+                        .filter(m ->
+                                m.getTipo() ==
+                                        TipoMovimentacaoCaixa.SANGRIA
+                        )
+                        .map(
+                                MovimentacaoCaixa::getValor
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal totalVendasDinheiro =
+                caixa.getVendas()
+                        .stream()
+                        .filter(v ->
+                                v.getFormaPagamento() ==
+                                        FormaPagamento.DINHEIRO
+                        )
+                        .map(
+                                Venda::getTotalFinal
+                        )
+                        .reduce(
+                                BigDecimal.ZERO,
+                                BigDecimal::add
+                        );
+
+        BigDecimal saldoEsperado =
                 caixa.getSaldoInicial()
+                        .add(totalVendasDinheiro)
+                        .add(totalReforcos)
+                        .subtract(totalSangrias);
+
+        BigDecimal furoCaixa =
+                dto.saldoFinalInformado()
+                        .subtract(saldoEsperado);
+
+        caixa.setSaldoFinalInformado(
+                dto.saldoFinalInformado()
+        );
+
+        caixa.setFuroCaixa(
+                furoCaixa
+        );
+
+        caixa.setStatus(
+                StatusCaixa.FECHADO
+        );
+
+        caixa.setDataFechamento(
+                OffsetDateTime.now()
+        );
+
+        caixaRepository.save(
+                caixa
+        );
+
+        return new FechamentoCaixaResponseDTO(
+                caixa.getSaldoInicial(),
+                totalVendasDinheiro,
+                totalReforcos,
+                totalSangrias,
+                saldoEsperado,
+                dto.saldoFinalInformado(),
+                furoCaixa
         );
     }
 }
