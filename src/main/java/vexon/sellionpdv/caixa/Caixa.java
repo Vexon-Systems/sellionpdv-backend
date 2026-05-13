@@ -1,37 +1,93 @@
 package vexon.sellionpdv.caixa;
 
 import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.TenantId;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "caixas")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Table(name = "caixa")
 public class Caixa {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @TenantId
-    @Column(name = "tenant_id")
-    private Long tenantId;
+    @Enumerated(EnumType.STRING)
+    private StatusCaixa status;
 
-    private String status;
-
-    @Column(name = "data_abertura")
     private LocalDateTime dataAbertura;
 
-    @Column(name = "data_fechamento")
     private LocalDateTime dataFechamento;
 
-    @Column(name = "saldo_inicial")
     private BigDecimal saldoInicial;
 
-    @Column(name = "saldo_final_informado")
+    private BigDecimal saldoFinalCalculado;
+
     private BigDecimal saldoFinalInformado;
 
-    @Column(name = "furo_caixa")
-    private BigDecimal furoCaixa;
+    private BigDecimal diferenca;
+
+    public Caixa() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public StatusCaixa getStatus() {
+        return status;
+    }
+
+    public void setStatus(StatusCaixa status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getDataAbertura() {
+        return dataAbertura;
+    }
+
+    public void setDataAbertura(LocalDateTime dataAbertura) {
+        this.dataAbertura = dataAbertura;
+    }
+
+    public LocalDateTime getDataFechamento() {
+        return dataFechamento;
+    }
+
+    public void setDataFechamento(LocalDateTime dataFechamento) {
+        this.dataFechamento = dataFechamento;
+    }
+
+    public BigDecimal getSaldoInicial() {
+        return saldoInicial;
+    }
+
+    public void setSaldoInicial(BigDecimal saldoInicial) {
+        this.saldoInicial = saldoInicial;
+    }
+
+    public BigDecimal getSaldoFinalCalculado() {
+        return saldoFinalCalculado;
+    }
+
+    public void setSaldoFinalCalculado(BigDecimal saldoFinalCalculado) {
+        this.saldoFinalCalculado = saldoFinalCalculado;
+    }
+
+    public BigDecimal getSaldoFinalInformado() {
+        return saldoFinalInformado;
+    }
+
+    public void setSaldoFinalInformado(BigDecimal saldoFinalInformado) {
+        this.saldoFinalInformado = saldoFinalInformado;
+    }
+
+    public BigDecimal getDiferenca() {
+        return diferenca;
+    }
+
+    public void setDiferenca(BigDecimal diferenca) {
+        this.diferenca = diferenca;
+    }
 }
