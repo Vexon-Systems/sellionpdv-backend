@@ -1,4 +1,4 @@
-package vexon.sellionpdv.security;
+package vexon.sellionpdv.tenant;
 
 public class TenantContext {
     private static final ThreadLocal<Long> CURRENT_TENANT = new ThreadLocal<>();

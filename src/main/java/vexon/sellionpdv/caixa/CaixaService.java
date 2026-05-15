@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
-import vexon.sellionpdv.security.TenantContext;
+import vexon.sellionpdv.tenant.TenantContext;
 import vexon.sellionpdv.tenant.Tenant;
 import vexon.sellionpdv.tenant.TenantRepository;
 import vexon.sellionpdv.venda.FormaPagamento;
@@ -25,6 +25,15 @@ public class CaixaService {
     public Caixa buscarCaixaAtual() {
         return caixaRepository.findByStatus(StatusCaixa.ABERTO)
                 .orElseThrow(() -> new RuntimeException("Nenhum caixa aberto encontrado para o tenant atual."));
+    }
+
+    public List<MovimentacaoCaixaResponseDTO> listarMovimentacoesCaixaAtual() {
+        Caixa caixa = buscarCaixaAtual();
+
+        return movimentacaoRepository.findByCaixa(caixa)
+                .stream()
+                .map(MovimentacaoCaixaResponseDTO::new)
+                .toList();
     }
 
     @Transactional

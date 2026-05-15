@@ -9,7 +9,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "tenants")
-@SQLRestriction("ativo = true") // Regra Inviolável: Filtro global de Soft Delete
+@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor

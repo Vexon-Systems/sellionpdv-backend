@@ -8,7 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import vexon.sellionpdv.usuario.Usuario;
 
-import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -45,7 +44,20 @@ public class TokenService {
                     .verify(token)
                     .getSubject();
         } catch (JWTVerificationException exception) {
-            return "";
+            return null;
+        }
+    }
+
+    public Long extrairTenantId(String token) {
+        try {
+            Algorithm algoritmo = Algorithm.HMAC256(secret);
+            return JWT.require(algoritmo)
+                    .withIssuer("SellionPDV")
+                    .build()
+                    .verify(token)
+                    .getClaim("tenantId").asLong();
+        } catch (JWTVerificationException exception) {
+            return null;
         }
     }
 
