@@ -1,93 +1,58 @@
 package vexon.sellionpdv.caixa;
 
 import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.TenantId;
+import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.venda.Venda;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 @Entity
-@Table(name = "caixa")
+@Table(name = "caixas")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Caixa {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @TenantId
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "tenant_id", insertable = false, updatable = false)
+    private Tenant tenant;
+
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
     private StatusCaixa status;
 
-    private LocalDateTime dataAbertura;
+    @Column(name = "data_abertura", nullable = false)
+    private OffsetDateTime dataAbertura;
 
-    private LocalDateTime dataFechamento;
+    @Column(name = "data_fechamento")
+    private OffsetDateTime dataFechamento;
 
+    @Column(name = "saldo_inicial", nullable = false)
     private BigDecimal saldoInicial;
 
-    private BigDecimal saldoFinalCalculado;
-
+    @Column(name = "saldo_final_informado")
     private BigDecimal saldoFinalInformado;
 
-    private BigDecimal diferenca;
+    @Column(name = "furo_caixa")
+    private BigDecimal furoCaixa;
 
-    public Caixa() {
-    }
+    @OneToMany(mappedBy = "caixa")
+    private List<Venda> vendas;
 
-    public Long getId() {
-        return id;
-    }
-
-    public StatusCaixa getStatus() {
-        return status;
-    }
-
-    public void setStatus(StatusCaixa status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getDataAbertura() {
-        return dataAbertura;
-    }
-
-    public void setDataAbertura(LocalDateTime dataAbertura) {
-        this.dataAbertura = dataAbertura;
-    }
-
-    public LocalDateTime getDataFechamento() {
-        return dataFechamento;
-    }
-
-    public void setDataFechamento(LocalDateTime dataFechamento) {
-        this.dataFechamento = dataFechamento;
-    }
-
-    public BigDecimal getSaldoInicial() {
-        return saldoInicial;
-    }
-
-    public void setSaldoInicial(BigDecimal saldoInicial) {
-        this.saldoInicial = saldoInicial;
-    }
-
-    public BigDecimal getSaldoFinalCalculado() {
-        return saldoFinalCalculado;
-    }
-
-    public void setSaldoFinalCalculado(BigDecimal saldoFinalCalculado) {
-        this.saldoFinalCalculado = saldoFinalCalculado;
-    }
-
-    public BigDecimal getSaldoFinalInformado() {
-        return saldoFinalInformado;
-    }
-
-    public void setSaldoFinalInformado(BigDecimal saldoFinalInformado) {
-        this.saldoFinalInformado = saldoFinalInformado;
-    }
-
-    public BigDecimal getDiferenca() {
-        return diferenca;
-    }
-
-    public void setDiferenca(BigDecimal diferenca) {
-        this.diferenca = diferenca;
-    }
+    @OneToMany(mappedBy = "caixa")
+    private List<MovimentacaoCaixa> movimentacoes;
 }

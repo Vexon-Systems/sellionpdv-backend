@@ -25,16 +25,14 @@ class CategoriaServiceTest {
     @Test
     @DisplayName("Deve criar uma categoria com sucesso quando o nome não existir")
     void deveCriarCategoriaComSucesso() {
-        // Preparação
+
         CategoriaRequestDTO request = new CategoriaRequestDTO("Sorvetes de Massa");
 
-        // Treinamento
         when(categoriaRepository.existsByNomeIgnoreCase("Sorvetes de Massa")).thenReturn(false);
 
         Categoria categoriaSimulada = Categoria.builder().id(1L).nome("Sorvetes de Massa").build();
         when(categoriaRepository.save(any(Categoria.class))).thenReturn(categoriaSimulada);
 
-        // Ação
         CategoriaResponseDTO response = categoriaService.criarCategoria(request);
 
         // Verificação
