@@ -1,4 +1,4 @@
-package vexon.sellionpdv.security;
+package vexon.sellionpdv.tenant;
 
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 import org.springframework.stereotype.Component;

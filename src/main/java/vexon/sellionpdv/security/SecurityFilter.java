@@ -9,6 +9,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import vexon.sellionpdv.tenant.TenantContext;
 import vexon.sellionpdv.usuario.UsuarioRepository;
 
 import java.io.IOException;
@@ -27,29 +28,30 @@ public class SecurityFilter extends OncePerRequestFilter {
 
         try {
             if (token != null) {
-                var email = tokenService.validarToken(token);
-                var usuario = usuarioRepository.findByEmailWithTenant(email);
+                Long tenantId = tokenService.extrairTenantId(token);
+                String email = tokenService.validarToken(token);
 
-                if (usuario.isPresent()) {
-                    var userDetails = org.springframework.security.core.userdetails.User
-                            .withUsername(usuario.get().getEmail())
-                            .password(usuario.get().getSenhaHash())
-                            .roles(usuario.get().getRole().replace("ROLE_", ""))
-                            .build();
+                if (tenantId != null && email != null) {
+                    TenantContext.setCurrentTenant(tenantId);
 
-                    var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    var usuario = usuarioRepository.findByEmailWithTenant(email);
 
-                    // Armazenamento do ID do Tenant na Thread do servidor
-                    TenantContext.setCurrentTenant(usuario.get().getTenant().getId());
+                    if (usuario.isPresent()) {
+                        var userDetails = org.springframework.security.core.userdetails.User
+                                .withUsername(usuario.get().getEmail())
+                                .password(usuario.get().getSenhaHash())
+                                .roles(usuario.get().getRole().replace("ROLE_", ""))
+                                .build();
+
+                        var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        SecurityContextHolder.getContext().setAuthentication(authentication);
+                    }
                 }
             }
 
             filterChain.doFilter(request, response);
 
-
         } finally {
-            // Sempre limpa o cofre no final da requisição para não vazar
             TenantContext.clear();
         }
     }

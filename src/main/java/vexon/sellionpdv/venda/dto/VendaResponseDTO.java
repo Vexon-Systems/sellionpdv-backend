@@ -1,16 +1,17 @@
 package vexon.sellionpdv.venda.dto;
 
+import vexon.sellionpdv.venda.FormaPagamento;
 import vexon.sellionpdv.venda.StatusVenda;
 import vexon.sellionpdv.venda.Venda;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.List;
 import java.util.UUID;
 
 public record VendaResponseDTO(
         Long id,
         StatusVenda status,
+        FormaPagamento formaPagamento,
         BigDecimal subtotal,
         BigDecimal descontoAplicado,
         BigDecimal totalFinal,
@@ -21,6 +22,7 @@ public record VendaResponseDTO(
         this(
                 venda.getId(),
                 venda.getStatus(),
+                venda.getFormaPagamento(),
                 venda.getSubtotal(),
                 venda.getDescontoAplicado(),
                 venda.getTotalFinal(),

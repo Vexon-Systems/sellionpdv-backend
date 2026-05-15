@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.caixa.dto.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/caixa")
 @RequiredArgsConstructor
@@ -18,6 +20,11 @@ public class CaixaController {
     public ResponseEntity<CaixaResponseDTO> buscarCaixaAtual() {
         Caixa caixa = service.buscarCaixaAtual();
         return ResponseEntity.ok(new CaixaResponseDTO(caixa));
+    }
+
+    @GetMapping("/movimentacao")
+    public ResponseEntity<List<MovimentacaoCaixaResponseDTO>> listarMovimentacoes() {
+        return ResponseEntity.ok(service.listarMovimentacoesCaixaAtual());
     }
 
     @PostMapping("/abrir")
