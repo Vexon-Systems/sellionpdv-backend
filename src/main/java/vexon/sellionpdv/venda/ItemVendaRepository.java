@@ -1,4 +1,4 @@
-package vexon.sellionpdv.Venda;
+package vexon.sellionpdv.venda;
 /*teste*/
 import org.springframework.data.jpa.repository.JpaRepository;
 

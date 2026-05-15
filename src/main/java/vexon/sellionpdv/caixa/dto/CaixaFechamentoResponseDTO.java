@@ -1,9 +1,8 @@
 package vexon.sellionpdv.caixa.dto;
 
 import java.math.BigDecimal;
-/*teste*/
-public record FechamentoCaixaResponseDTO(
 
+public record CaixaFechamentoResponseDTO(
         BigDecimal saldoInicial,
         BigDecimal totalVendasDinheiro,
         BigDecimal totalReforcos,
@@ -12,5 +11,4 @@ public record FechamentoCaixaResponseDTO(
         BigDecimal saldoInformado,
         BigDecimal furoCaixa
 
-) {
-}
+) {}

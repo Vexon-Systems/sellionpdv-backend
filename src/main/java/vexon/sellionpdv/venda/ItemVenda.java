@@ -1,21 +1,21 @@
-package vexon.sellionpdv.caixa;
+package vexon.sellionpdv.venda;
 
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
+import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.tenant.Tenant;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "movimentacoes_caixa")
+@Table(name = "itens_venda")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MovimentacaoCaixa {
+public class ItemVenda {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,19 +30,19 @@ public class MovimentacaoCaixa {
     private Tenant tenant;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "caixa_id", nullable = false)
-    private Caixa caixa;
+    @JoinColumn(name = "venda_id", nullable = false)
+    private Venda venda;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private TipoMovimentacaoCaixa tipo;
-
-    @Column(nullable = false)
-    private BigDecimal valor;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "produto_id", nullable = false)
+    private Produto produto;
 
     @Column(nullable = false)
-    private String motivo;
+    private Integer quantidade;
 
-    @Column(name = "data_movimentacao", nullable = false)
-    private OffsetDateTime dataMovimentacao;
+    @Column(name = "preco_unitario_cobrado", nullable = false)
+    private BigDecimal precoUnitarioCobrado;
+
+    @Column(name = "subtotal_item", nullable = false)
+    private BigDecimal subtotalItem;
 }
