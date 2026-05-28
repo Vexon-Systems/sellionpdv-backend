@@ -20,7 +20,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
 
-    public LoginResponseDTO realizarLogin(@RequestBody @Valid LoginRequestDTO request) {
+    public LoginResponseDTO realizarLogin(LoginRequestDTO request) {
         Usuario usuario = usuarioRepository.findByEmailWithTenant(request.email())
                 .orElseThrow(() -> new RuntimeException("E-mail ou senha inválidos"));
 
