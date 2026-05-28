@@ -33,6 +33,22 @@ public class Usuario {
     @Column(name = "email", nullable = false, unique = true)
     private String email;
 
+    @Column(name = "telefone")
+    private String telefone;
+
+    @Column(name = "avatar_url", columnDefinition = "text")
+    private String avatarUrl;
+
+    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    private UsuarioPreferencias preferencias;
+
+    public void setPreferencias(UsuarioPreferencias preferencias) {
+        if (preferencias != null) {
+            preferencias.setUsuario(this);
+        }
+        this.preferencias = preferencias;
+    }
+
     @Column(name = "senha_hash", nullable = false)
     private String senhaHash;
 
