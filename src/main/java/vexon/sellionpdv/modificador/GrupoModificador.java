@@ -10,7 +10,6 @@ import java.util.List;
 
 @Entity
 @Table(name = "grupos_modificadores")
-@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor

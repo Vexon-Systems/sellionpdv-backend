@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
 import vexon.sellionpdv.caixa.Caixa;
+import vexon.sellionpdv.maquininha.Maquininha;
 import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.usuario.Usuario;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -45,8 +47,15 @@ public class Venda {
     @Column(name = "forma_pagamento", nullable = false)
     private FormaPagamento formaPagamento;
 
-    @Column(name = "maquininha_id")
-    private Long maquininhaId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "maquininha_id")
+    private Maquininha maquininha;
+
+    @Column(name = "justificativa_cancelamento", columnDefinition = "text")
+    private String justificativaCancelamento;
+
+    @Column(name = "data_cancelamento")
+    private OffsetDateTime dataCancelamento;
 
     @Column(nullable = false)
     private BigDecimal subtotal;
@@ -63,6 +72,10 @@ public class Venda {
 
     @Column(name = "data_venda")
     private OffsetDateTime dataVenda;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_id", nullable = false)
+    private Usuario usuario;
 
     @Builder.Default
     @OneToMany(mappedBy = "venda", cascade = CascadeType.ALL, orphanRemoval = true)

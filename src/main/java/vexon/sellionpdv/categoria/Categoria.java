@@ -11,7 +11,6 @@ import org.hibernate.annotations.TenantId;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@SQLRestriction("ativo = true")
 @EqualsAndHashCode(of = "id")
 @Table(name = "categorias")
 public class Categoria {

@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
 import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.usuario.Usuario;
 import vexon.sellionpdv.venda.Venda;
 
 import java.math.BigDecimal;
@@ -52,6 +53,14 @@ public class Caixa {
 
     @OneToMany(mappedBy = "caixa")
     private List<Venda> vendas;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_abertura_id", nullable = false)
+    private Usuario operadorAbertura;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_fechamento_id")
+    private Usuario operadorFechamento;
 
     @OneToMany(mappedBy = "caixa")
     private List<MovimentacaoCaixa> movimentacoes;

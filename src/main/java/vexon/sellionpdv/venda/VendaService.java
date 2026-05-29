@@ -5,9 +5,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.CaixaService;
+import vexon.sellionpdv.maquininha.MaquininhaRepository;
 import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.produto.ProdutoRepository;
 import vexon.sellionpdv.venda.dto.*;
+import vexon.sellionpdv.usuario.Usuario;
+import vexon.sellionpdv.usuario.UsuarioRepository;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -22,6 +25,8 @@ public class VendaService {
     private final VendaRepository vendaRepository;
     private final ProdutoRepository produtoRepository;
     private final CaixaService caixaService;
+    private final MaquininhaRepository maquininhaRepository;
+    private final UsuarioRepository usuarioRepository;
 
     public List<VendaResponseDTO> listarVendasCaixaAtual() {
         Caixa caixa = caixaService.buscarCaixaAtual();
@@ -31,18 +36,22 @@ public class VendaService {
     }
 
     @Transactional
-    public VendaResponseDTO registrarVenda(VendaRequestDTO dto, UUID idempotencyKey) {
+    public VendaResponseDTO registrarVenda(VendaRequestDTO dto, UUID idempotencyKey, String emailOperador) {
         vendaRepository.findByIdempotencyKey(idempotencyKey)
                 .ifPresent(v -> { throw new RuntimeException("Venda já processada com esta chave."); });
 
         Caixa caixa = caixaService.buscarCaixaAtual();
 
+        Usuario operador = usuarioRepository.findByEmailWithTenant(emailOperador)
+                .orElseThrow(() -> new RuntimeException("Operador não encontrado."));
+
         Venda venda = Venda.builder()
                 .tenant(caixa.getTenant())
                 .caixa(caixa)
+                .usuario(operador)
                 .status(StatusVenda.CONCLUIDA)
                 .formaPagamento(dto.formaPagamento())
-                .maquininhaId(dto.maquininhaId())
+                .maquininha(dto.maquininhaId() != null ? maquininhaRepository.getReferenceById(dto.maquininhaId()) : null)
                 .idempotencyKey(idempotencyKey)
                 .dataVenda(OffsetDateTime.now())
                 .descontoAplicado(dto.descontoAplicado() != null ? dto.descontoAplicado() : BigDecimal.ZERO)
