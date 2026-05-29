@@ -7,6 +7,8 @@ import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.tenant.Tenant;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "itens_venda")
@@ -45,4 +47,8 @@ public class ItemVenda {
 
     @Column(name = "subtotal_item", nullable = false)
     private BigDecimal subtotalItem;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "itemVenda", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ItemVendaModificador> modificadores = new ArrayList<>();
 }

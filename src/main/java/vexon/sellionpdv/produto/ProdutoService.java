@@ -24,7 +24,6 @@ public class ProdutoService {
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
 
-    // NOVO: Adicionado para conseguirmos buscar os modificadores no banco
     private final GrupoModificadorRepository grupoRepository;
 
     @Transactional
@@ -44,14 +43,13 @@ public class ProdutoService {
                 .imagemUrl(request.imagemUrl())
                 .build();
 
-        // Passa a lista inicial para o motor criar as relações
         sincronizarGruposNoProduto(produto, request.gruposModificadores());
 
         return mapToResponse(produtoRepository.save(produto));
     }
 
     public List<ProdutoResponseDTO> listarProdutos() {
-        return produtoRepository.findAll().stream()
+        return produtoRepository.findAllByAtivoTrue().stream()
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -145,7 +143,7 @@ public class ProdutoService {
                     var grupo = relacao.getGrupo();
 
                     List<ProdutoOpcaoResponseDTO> opcoesDTO = grupo.getOpcoes().stream()
-                            .filter(opcao -> opcao.getAtivo()) // Oculta opções apagadas
+                            .filter(opcao -> opcao.getAtivo())
                             .map(opcao -> new ProdutoOpcaoResponseDTO(
                                     opcao.getId(),
                                     opcao.getNome(),

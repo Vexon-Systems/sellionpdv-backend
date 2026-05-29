@@ -10,7 +10,6 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "usuarios")
-@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor

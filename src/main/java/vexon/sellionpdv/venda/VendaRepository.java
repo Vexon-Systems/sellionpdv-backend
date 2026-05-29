@@ -1,5 +1,7 @@
 package vexon.sellionpdv.venda;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -69,4 +71,27 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
             "GROUP BY FUNCTION('to_char', v.dataVenda, 'DD/MM') " +
             "ORDER BY dia")
     List<Object[]> obterSerieTemporalPorDia(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
+
+    // Retorna a página de vendas trazendo o operador (Usuario do Caixa) para evitar N+1
+    @Query(value = "SELECT v FROM Venda v JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
+            "WHERE (:status IS NULL OR v.status = :status)",
+            countQuery = "SELECT count(v) FROM Venda v WHERE (:status IS NULL OR v.status = :status)")
+    Page<Venda> buscarRelatorioVendas(@Param("status") String status, Pageable pageable);
+
+    // Busca os detalhes profundos de uma única venda (Recibo)
+    @Query("SELECT v FROM Venda v " +
+            "JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
+            "LEFT JOIN FETCH v.itens i LEFT JOIN FETCH i.produto " +
+            "WHERE v.id = :id")
+    Optional<Venda> buscarReciboComDetalhes(@Param("id") Long id);
+
+    @Query("SELECT DISTINCT v FROM Venda v " +
+            "LEFT JOIN FETCH v.maquininha " +
+            "LEFT JOIN FETCH v.itens i " +
+            "LEFT JOIN FETCH i.produto " +
+            "WHERE v.dataVenda >= :inicio AND v.dataVenda <= :fim")
+    List<Venda> buscarVendasParaDre(
+            @Param("inicio") java.time.OffsetDateTime inicio,
+            @Param("fim") java.time.OffsetDateTime fim
+    );
 }

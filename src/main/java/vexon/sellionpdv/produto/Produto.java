@@ -14,7 +14,6 @@ import java.util.Set;
 
 @Entity
 @Table(name = "produtos")
-@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -47,6 +46,9 @@ public class Produto {
 
     @Column(name = "imagem_url")
     private String imagemUrl;
+
+    @Column(name = "custo_estimado")
+    private BigDecimal custoEstimado;
 
     @CreationTimestamp
     @Column(name = "criado_em", nullable = false, updatable = false)

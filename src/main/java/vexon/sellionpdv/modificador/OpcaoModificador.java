@@ -9,7 +9,6 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "opcoes_modificadores")
-@SQLRestriction("ativo = true")
 @Getter
 @Setter
 @NoArgsConstructor

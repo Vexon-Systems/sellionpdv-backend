@@ -29,7 +29,7 @@ public class CategoriaService {
     }
 
     public List<CategoriaResponseDTO> listarCategorias() {
-        return categoriaRepository.findAll().stream()
+        return categoriaRepository.findAllByAtivoTrue().stream()
                 .map(cat -> new CategoriaResponseDTO(cat.getId(), cat.getNome()))
                 .toList();
     }

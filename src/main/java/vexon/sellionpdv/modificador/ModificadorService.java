@@ -40,7 +40,7 @@ public class ModificadorService {
     }
 
     public List<GrupoResponseDTO> listarGrupos() {
-        return grupoRepository.findAll().stream()
+        return grupoRepository.findAllByAtivoTrue().stream()
                 .map(this::mapToResponse)
                 .toList();
     }
