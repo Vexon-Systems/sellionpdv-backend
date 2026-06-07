@@ -24,8 +24,7 @@ public interface RelatorioCaixaRepository extends JpaRepository<Caixa, Long> {
             (SELECT SUM(v.totalFinal) FROM Venda v WHERE v.caixa.id = c.id AND v.status = 'CONCLUIDA' AND v.formaPagamento = 'DINHEIRO'),
             (SELECT SUM(m.valor) FROM MovimentacaoCaixa m WHERE m.caixa.id = c.id AND m.tipo = 'SANGRIA'),
             (SELECT SUM(m.valor) FROM MovimentacaoCaixa m WHERE m.caixa.id = c.id AND m.tipo = 'REFORCO'),
-            c.saldoFinalInformado,
-            c.furoCaixa
+            c.saldoFinalInformado
         )
         FROM Caixa c
         LEFT JOIN c.operadorAbertura opAbertura

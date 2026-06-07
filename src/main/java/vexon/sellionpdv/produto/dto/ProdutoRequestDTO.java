@@ -14,6 +14,9 @@ public record ProdutoRequestDTO(
         @PositiveOrZero(message = "O preço não pode ser negativo")
         BigDecimal precoBase,
 
+        @PositiveOrZero(message = "O custo estimado não pode ser negativo")
+        BigDecimal custoEstimado,
+
         @NotNull(message = "O status é obrigatório")
         Boolean ativo,
 

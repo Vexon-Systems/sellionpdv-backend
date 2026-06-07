@@ -68,10 +68,15 @@ public class RelatorioController {
 
     @GetMapping("/comparativo")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Gera um balanço comparativo entre o período atual e o anterior")
+    @Operation(summary = "Gera um balanço comparativo usando datas customizadas")
     public ResponseEntity<RelatorioComparativoResponseDTO> obterRelatorioComparativo(
-            @RequestParam String escala) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
 
-        return ResponseEntity.ok(relatorioService.gerarRelatorioComparativo(escala.toUpperCase()));
+        if (dataFinal.isBefore(dataInicial)) {
+            throw new IllegalArgumentException("A data final não pode ser anterior à data inicial.");
+        }
+
+        return ResponseEntity.ok(relatorioService.gerarRelatorioComparativo(dataInicial, dataFinal));
     }
 }

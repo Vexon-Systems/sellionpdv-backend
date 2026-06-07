@@ -9,6 +9,8 @@ import vexon.sellionpdv.categoria.CategoriaRepository;
 import vexon.sellionpdv.modificador.GrupoModificador;
 import vexon.sellionpdv.modificador.GrupoModificadorRepository;
 import vexon.sellionpdv.produto.dto.*;
+
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,6 +40,7 @@ public class ProdutoService {
         Produto produto = Produto.builder()
                 .nome(request.nome())
                 .precoBase(request.precoBase())
+                .custoEstimado(request.custoEstimado())
                 .ativo(request.ativo())
                 .categoria(categoria)
                 .imagemUrl(request.imagemUrl())
@@ -73,14 +76,13 @@ public class ProdutoService {
         Categoria categoria = categoriaRepository.findById(request.categoriaId())
                 .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
 
-        // Atualiza os dados base
         produto.setNome(request.nome());
         produto.setPrecoBase(request.precoBase());
+        produto.setCustoEstimado(request.custoEstimado());
         produto.setAtivo(request.ativo());
         produto.setCategoria(categoria);
         produto.setImagemUrl(request.imagemUrl());
 
-        // Em vez de usar o clear nós usamos a sincronização
         sincronizarGruposNoProduto(produto, request.gruposModificadores());
 
         return mapToResponse(produto);
@@ -162,10 +164,23 @@ public class ProdutoService {
                 })
                 .toList();
 
+        BigDecimal custo = produto.getCustoEstimado() != null ? produto.getCustoEstimado() : BigDecimal.ZERO;
+        BigDecimal margemBruta = BigDecimal.ZERO;
+
+        if (produto.getPrecoBase() != null && produto.getPrecoBase().compareTo(BigDecimal.ZERO) > 0) {
+            margemBruta = produto.getPrecoBase()
+                    .subtract(custo)
+                    .divide(produto.getPrecoBase(), 4, java.math.RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(2, java.math.RoundingMode.HALF_UP);
+        }
+
         return new ProdutoResponseDTO(
                 produto.getId(),
                 produto.getNome(),
                 produto.getPrecoBase(),
+                produto.getCustoEstimado(),
+                margemBruta,
                 produto.getAtivo(),
                 produto.getCategoria().getId(),
                 produto.getImagemUrl(),

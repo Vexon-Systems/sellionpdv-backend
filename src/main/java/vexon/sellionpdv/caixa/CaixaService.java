@@ -1,12 +1,15 @@
 package vexon.sellionpdv.caixa;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
 import vexon.sellionpdv.tenant.TenantContext;
 import vexon.sellionpdv.tenant.Tenant;
 import vexon.sellionpdv.tenant.TenantRepository;
+import vexon.sellionpdv.usuario.Usuario;
+import vexon.sellionpdv.usuario.UsuarioRepository;
 import vexon.sellionpdv.venda.FormaPagamento;
 import vexon.sellionpdv.venda.Venda;
 
@@ -21,6 +24,7 @@ public class CaixaService {
     private final CaixaRepository caixaRepository;
     private final MovimentacaoCaixaRepository movimentacaoRepository;
     private final TenantRepository tenantRepository;
+    private final UsuarioRepository usuarioRepository;
 
     public Caixa buscarCaixaAtual() {
         return caixaRepository.findByStatus(StatusCaixa.ABERTO)
@@ -46,11 +50,14 @@ public class CaixaService {
         Long tenantId = TenantContext.getCurrentTenant();
         Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
 
+        Usuario usuarioLogado = getUsuarioAutenticado();
+
         Caixa caixa = Caixa.builder()
                 .tenant(tenant)
                 .status(StatusCaixa.ABERTO)
                 .saldoInicial(dto.saldoInicial())
                 .dataAbertura(OffsetDateTime.now())
+                .operadorAbertura(usuarioLogado)
                 .build();
 
         return caixaRepository.save(caixa);
@@ -75,6 +82,7 @@ public class CaixaService {
     @Transactional
     public CaixaFechamentoResponseDTO fecharCaixa(CaixaFechamentoRequestDTO dto) {
         Caixa caixa = buscarCaixaAtual();
+        Usuario usuarioLogado = getUsuarioAutenticado();
         List<MovimentacaoCaixa> movimentacoes = movimentacaoRepository.findByCaixa(caixa);
 
         BigDecimal totalReforcos = movimentacoes.stream()
@@ -105,6 +113,7 @@ public class CaixaService {
         caixa.setFuroCaixa(furoCaixa);
         caixa.setStatus(StatusCaixa.FECHADO);
         caixa.setDataFechamento(OffsetDateTime.now());
+        caixa.setOperadorFechamento(usuarioLogado);
 
         caixaRepository.save(caixa);
 
@@ -117,5 +126,12 @@ public class CaixaService {
                 dto.saldoFinalInformado(),
                 furoCaixa
         );
+    }
+
+    private Usuario getUsuarioAutenticado() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return usuarioRepository.findByEmailWithTenant(email)
+                .orElseThrow(() -> new RuntimeException("Usuário autenticado não encontrado."));
     }
 }

@@ -91,6 +91,15 @@ public class VendaService {
 
         venda.setStatus(StatusVenda.CANCELADA);
 
+        venda.setJustificativaCancelamento(dto.justificativa());
+        venda.setDataCancelamento(OffsetDateTime.now());
+
+        /* * Nota de Arquitetura: Não usamos venda.setAtivo(false) aqui.
+         * Mantemos o registo ativo, mas CANCELADO. Isso garante que a query
+         * 'buscarVendasParaDre' no Repository consiga ler esta linha e somar
+         * o valor nas deduções do DRE!
+         */
+
         vendaRepository.save(venda);
     }
 }
