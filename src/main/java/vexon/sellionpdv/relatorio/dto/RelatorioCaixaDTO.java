@@ -29,8 +29,7 @@ public record RelatorioCaixaDTO(
             BigDecimal totalVendasDinheiroRaw,
             BigDecimal totalSangriasRaw,
             BigDecimal totalReforcosRaw,
-            BigDecimal saldoFinalInformado,
-            BigDecimal furoCaixa
+            BigDecimal saldoFinalInformado
     ) {
         this(
                 caixaId,
@@ -39,16 +38,28 @@ public record RelatorioCaixaDTO(
                 operadorFechamento,
                 dataAbertura,
                 dataFechamento,
-                saldoInicial != null ? saldoInicial : BigDecimal.ZERO,
-                totalVendasDinheiroRaw != null ? totalVendasDinheiroRaw : BigDecimal.ZERO,
-                totalSangriasRaw != null ? totalSangriasRaw : BigDecimal.ZERO,
-                totalReforcosRaw != null ? totalReforcosRaw : BigDecimal.ZERO,
-                (saldoInicial != null ? saldoInicial : BigDecimal.ZERO)
-                        .add(totalVendasDinheiroRaw != null ? totalVendasDinheiroRaw : BigDecimal.ZERO)
-                        .add(totalReforcosRaw != null ? totalReforcosRaw : BigDecimal.ZERO)
-                        .subtract(totalSangriasRaw != null ? totalSangriasRaw : BigDecimal.ZERO),
-                saldoFinalInformado,
-                furoCaixa
+                tratarNulo(saldoInicial),
+                tratarNulo(totalVendasDinheiroRaw),
+                tratarNulo(totalSangriasRaw),
+                tratarNulo(totalReforcosRaw),
+                calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw),
+                tratarNulo(saldoFinalInformado),
+                calcularFuro(saldoFinalInformado, calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw), status)
         );
+    }
+
+    private static BigDecimal tratarNulo(BigDecimal valor) {
+        return valor != null ? valor : BigDecimal.ZERO;
+    }
+
+    private static BigDecimal calcularSaldoFinal(BigDecimal inicial, BigDecimal vendas, BigDecimal reforcos, BigDecimal sangrias) {
+        return tratarNulo(inicial).add(tratarNulo(vendas)).add(tratarNulo(reforcos)).subtract(tratarNulo(sangrias));
+    }
+
+    private static BigDecimal calcularFuro(BigDecimal informado, BigDecimal calculado, String status) {
+        if (!"FECHADO".equalsIgnoreCase(status) || informado == null) {
+            return BigDecimal.ZERO;
+        }
+        return informado.subtract(calculado);
     }
 }

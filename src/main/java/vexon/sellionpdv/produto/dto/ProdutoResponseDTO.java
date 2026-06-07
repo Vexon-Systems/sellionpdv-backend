@@ -7,9 +7,10 @@ public record ProdutoResponseDTO(
         Long id,
         String nome,
         BigDecimal precoBase,
+        BigDecimal custoEstimado,
+        BigDecimal margemBruta,
         Boolean ativo,
         Long categoriaId,
         String imagemUrl,
         List<ProdutoGrupoResponseDTO> gruposModificadores
-
 ) {}

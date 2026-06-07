@@ -17,6 +17,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -174,47 +175,24 @@ public class RelatorioService {
     }
 
     @Transactional(readOnly = true)
-    public RelatorioComparativoResponseDTO gerarRelatorioComparativo(String escala) {
-        LocalDate hoje = LocalDate.now(ZoneId.systemDefault());
+    public RelatorioComparativoResponseDTO gerarRelatorioComparativo(LocalDate dataInicial, LocalDate dataFinal) {
 
-        LocalDate inicioAtual;
-        LocalDate fimAtual = hoje;
-        LocalDate inicioAnterior;
-        LocalDate fimAnterior;
+        long intervaloDias = ChronoUnit.DAYS.between(dataInicial, dataFinal) + 1;
 
-        String rotuloAtualBase;
-        String rotuloAnteriorBase;
+        LocalDate inicioAtual = dataInicial;
+        LocalDate fimAtual = dataFinal;
 
-        switch (escala) {
-            case "HOJE" -> {
-                inicioAtual = hoje;
-                inicioAnterior = hoje.minusDays(1);
-                fimAnterior = inicioAnterior;
-                rotuloAtualBase = "Hoje";
-                rotuloAnteriorBase = "Ontem";
-            }
-            case "SEMANA" -> {
-                inicioAtual = hoje.with(java.time.DayOfWeek.MONDAY);
-                inicioAnterior = inicioAtual.minusWeeks(1);
-                fimAnterior = fimAtual.minusWeeks(1);
-                rotuloAtualBase = "Esta Semana";
-                rotuloAnteriorBase = "Semana Passada";
-            }
-            case "MES" -> {
-                inicioAtual = hoje.withDayOfMonth(1);
-                inicioAnterior = inicioAtual.minusMonths(1);
-                fimAnterior = fimAtual.minusMonths(1);
-                rotuloAtualBase = "Este Mês";
-                rotuloAnteriorBase = "Mês Passado";
-            }
-            default -> throw new IllegalArgumentException("Escala inválida. Use HOJE, SEMANA ou MES.");
-        }
+        LocalDate inicioAnterior = dataInicial.minusDays(intervaloDias);
+        LocalDate fimAnterior = dataFinal.minusDays(intervaloDias);
+
+        String rotuloAtual = "Período Atual";
+        String rotuloAnterior = "Período Anterior";
 
         PeriodoComparativoDTO periodoAtual = processarPeriodoComparativo(
-                inicioAtual, fimAtual, rotuloAtualBase);
+                inicioAtual, fimAtual, rotuloAtual);
 
         PeriodoComparativoDTO periodoAnterior = processarPeriodoComparativo(
-                inicioAnterior, fimAnterior, rotuloAnteriorBase);
+                inicioAnterior, fimAnterior, rotuloAnterior);
 
         VariacaoPercentualDTO variacoes = new VariacaoPercentualDTO(
                 calcularVariacao(periodoAtual.faturamentoTotal(), periodoAnterior.faturamentoTotal()),
@@ -223,7 +201,7 @@ public class RelatorioService {
                 calcularVariacao(periodoAtual.lucroEstimado(), periodoAnterior.lucroEstimado())
         );
 
-        return new RelatorioComparativoResponseDTO(escala, periodoAtual, periodoAnterior, variacoes);
+        return new RelatorioComparativoResponseDTO("CUSTOMIZADA", periodoAtual, periodoAnterior, variacoes);
     }
 
     private PeriodoComparativoDTO processarPeriodoComparativo(LocalDate inicio, LocalDate fim, String rotuloBase) {
