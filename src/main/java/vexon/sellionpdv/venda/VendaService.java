@@ -6,6 +6,8 @@ import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.CaixaService;
 import vexon.sellionpdv.maquininha.MaquininhaRepository;
+import vexon.sellionpdv.modificador.OpcaoModificador;
+import vexon.sellionpdv.modificador.OpcaoModificadorRepository; // <-- NÃO ESQUEÇA DE IMPORTAR
 import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.produto.ProdutoRepository;
 import vexon.sellionpdv.venda.dto.*;
@@ -14,6 +16,7 @@ import vexon.sellionpdv.usuario.UsuarioRepository;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -27,6 +30,7 @@ public class VendaService {
     private final CaixaService caixaService;
     private final MaquininhaRepository maquininhaRepository;
     private final UsuarioRepository usuarioRepository;
+    private final OpcaoModificadorRepository opcaoRepository;
 
     public List<VendaResponseDTO> listarVendasCaixaAtual() {
         Caixa caixa = caixaService.buscarCaixaAtual();
@@ -61,16 +65,46 @@ public class VendaService {
             Produto produto = produtoRepository.findById(itemDto.produtoId())
                     .orElseThrow(() -> new RuntimeException("Produto não encontrado: " + itemDto.produtoId()));
 
-            BigDecimal subtotalItem = produto.getPrecoBase().multiply(BigDecimal.valueOf(itemDto.quantidade()));
+            BigDecimal precoUnitarioCalculado = produto.getPrecoBase();
+            List<ItemVendaModificador> modificadoresDoItem = new ArrayList<>();
 
-            return ItemVenda.builder()
+            ItemVenda itemVenda = ItemVenda.builder()
                     .tenant(venda.getTenant())
                     .venda(venda)
                     .produto(produto)
                     .quantidade(itemDto.quantidade())
-                    .precoUnitarioCobrado(produto.getPrecoBase())
-                    .subtotalItem(subtotalItem)
                     .build();
+
+            if (itemDto.modificadores() != null && !itemDto.modificadores().isEmpty()) {
+
+                for (Long opcaoId : itemDto.modificadores()) {
+                    OpcaoModificador opcao = opcaoRepository.findById(opcaoId)
+                            .orElseThrow(() -> new RuntimeException("Opção de modificador não encontrada: " + opcaoId));
+
+                    // Soma o preço do adicional ao preço unitário base
+                    if (opcao.getPrecoAdicional() != null) {
+                        precoUnitarioCalculado = precoUnitarioCalculado.add(opcao.getPrecoAdicional());
+                    }
+
+                    // Registra o modificador para o histórico
+                    modificadoresDoItem.add(ItemVendaModificador.builder()
+                            .tenant(venda.getTenant())
+                            .itemVenda(itemVenda)
+                            .opcao(opcao)
+                            .quantidade(1)
+                            .precoAdicionalCobrado(opcao.getPrecoAdicional() != null ? opcao.getPrecoAdicional() : BigDecimal.ZERO)
+                            .build());
+                }
+            }
+
+            BigDecimal subtotalItem = precoUnitarioCalculado.multiply(BigDecimal.valueOf(itemDto.quantidade()));
+
+            itemVenda.setPrecoUnitarioCobrado(precoUnitarioCalculado);
+            itemVenda.setSubtotalItem(subtotalItem);
+            itemVenda.setModificadores(modificadoresDoItem);
+
+            return itemVenda;
+
         }).collect(Collectors.toList());
 
         BigDecimal subtotalVenda = itens.stream()
@@ -93,12 +127,6 @@ public class VendaService {
 
         venda.setJustificativaCancelamento(dto.justificativa());
         venda.setDataCancelamento(OffsetDateTime.now());
-
-        /* * Nota de Arquitetura: Não usamos venda.setAtivo(false) aqui.
-         * Mantemos o registo ativo, mas CANCELADO. Isso garante que a query
-         * 'buscarVendasParaDre' no Repository consiga ler esta linha e somar
-         * o valor nas deduções do DRE!
-         */
 
         vendaRepository.save(venda);
     }

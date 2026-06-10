@@ -66,7 +66,6 @@ public class Venda {
     @Column(name = "total_final", nullable = false)
     private BigDecimal totalFinal;
 
-    // Prevenção contra dupla cobrança (Falhas de Rede)
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private UUID idempotencyKey;
 
