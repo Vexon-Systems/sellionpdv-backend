@@ -55,21 +55,23 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     List<Object[]> obterFaturamentoPorCategoria(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
 
     // Série Temporal - Agrupamento por Hora
-    @Query("SELECT FUNCTION('to_char', v.dataVenda, 'HH24:00') as hora, SUM(v.totalFinal) " +
+    @Query("SELECT FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'HH24:00') as periodo, " +
+            "SUM(v.totalFinal) as total " +
             "FROM Venda v " +
             "WHERE v.status = 'CONCLUIDA' " +
             "AND v.dataVenda >= :inicio AND v.dataVenda <= :fim " +
-            "GROUP BY FUNCTION('to_char', v.dataVenda, 'HH24:00') " +
-            "ORDER BY hora")
+            "GROUP BY FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'HH24:00') " +
+            "ORDER BY FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'HH24:00')")
     List<Object[]> obterSerieTemporalPorHora(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
 
     // Série Temporal - Agrupamento por Dia
-    @Query("SELECT FUNCTION('to_char', v.dataVenda, 'DD/MM') as dia, SUM(v.totalFinal) " +
+    @Query("SELECT FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'DD/MM/YYYY') as periodo, " +
+            "SUM(v.totalFinal) as total " +
             "FROM Venda v " +
             "WHERE v.status = 'CONCLUIDA' " +
             "AND v.dataVenda >= :inicio AND v.dataVenda <= :fim " +
-            "GROUP BY FUNCTION('to_char', v.dataVenda, 'DD/MM') " +
-            "ORDER BY dia")
+            "GROUP BY FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'DD/MM/YYYY') " +
+            "ORDER BY FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'DD/MM/YYYY')")
     List<Object[]> obterSerieTemporalPorDia(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
 
     // Retorna a página de vendas trazendo o operador (Usuario do Caixa) para evitar N+1
