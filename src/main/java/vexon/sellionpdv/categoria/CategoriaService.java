@@ -1,22 +1,25 @@
 package vexon.sellionpdv.categoria;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.categoria.dto.CategoriaRequestDTO;
 import vexon.sellionpdv.categoria.dto.CategoriaResponseDTO;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class CategoriaService {
+
     private final CategoriaRepository categoriaRepository;
 
     @Transactional
     public CategoriaResponseDTO criarCategoria(CategoriaRequestDTO request) {
-        if(categoriaRepository.existsByNomeIgnoreCase(request.nome())){
-            throw new RuntimeException("Já existe uma categoria cadastrada com esse nome");
+        if (categoriaRepository.existsByNomeIgnoreCase(request.nome())) {
+            throw new BusinessException("Já existe uma categoria cadastrada com esse nome.");
         }
 
         Categoria novaCategoria = Categoria.builder()
@@ -28,6 +31,7 @@ public class CategoriaService {
         return new CategoriaResponseDTO(categoriaSalva.getId(), categoriaSalva.getNome());
     }
 
+    @Transactional(readOnly = true)
     public List<CategoriaResponseDTO> listarCategorias() {
         return categoriaRepository.findAllByAtivoTrue().stream()
                 .map(cat -> new CategoriaResponseDTO(cat.getId(), cat.getNome()))
@@ -37,11 +41,11 @@ public class CategoriaService {
     @Transactional
     public CategoriaResponseDTO atualizarCategoria(Long id, CategoriaRequestDTO request) {
         Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
 
         if (!categoria.getNome().equalsIgnoreCase(request.nome()) &&
                 categoriaRepository.existsByNomeIgnoreCase(request.nome())) {
-            throw new RuntimeException("Já existe outra categoria com este nome.");
+            throw new BusinessException("Já existe outra categoria com este nome.");
         }
 
         categoria.setNome(request.nome());
@@ -51,16 +55,11 @@ public class CategoriaService {
     @Transactional
     public void inativarCategoria(Long id) {
         Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
-
-        // Soft Delete
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
         categoria.setAtivo(false);
     }
 
     private CategoriaResponseDTO mapToResponse(Categoria categoria) {
-        return new CategoriaResponseDTO(
-                categoria.getId(),
-                categoria.getNome()
-        );
+        return new CategoriaResponseDTO(categoria.getId(), categoria.getNome());
     }
 }

@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.usuario.dto.*;
 
 @Service
@@ -13,10 +15,9 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Busca o usuário logado usando o e-mail extraído do token JWT
     private Usuario buscarUsuarioLogadoSeguro(String email) {
         return usuarioRepository.findByEmailWithTenant(email)
-                .orElseThrow(() -> new RuntimeException("Utilizador não encontrado ou não pertence a esta Franquia"));
+                .orElseThrow(() -> new ResourceNotFoundException("Utilizador não encontrado ou não pertence a esta Franquia"));
     }
 
     @Transactional(readOnly = true)
@@ -39,7 +40,7 @@ public class UsuarioService {
         Usuario usuario = buscarUsuarioLogadoSeguro(email);
 
         if (!passwordEncoder.matches(dto.senhaAtual(), usuario.getSenhaHash())) {
-            throw new RuntimeException("A senha atual informada está incorreta.");
+            throw new BusinessException("A senha atual informada está incorreta.");
         }
 
         usuario.setSenhaHash(passwordEncoder.encode(dto.novaSenha()));
@@ -81,7 +82,7 @@ public class UsuarioService {
             pref.setPinHash(null);
         } else {
             pref.setUsaPin(true);
-            pref.setPinHash(passwordEncoder.encode(dto.pin())); // Hash usando Argon2id
+            pref.setPinHash(passwordEncoder.encode(dto.pin()));
         }
 
         usuarioRepository.save(usuario);
@@ -90,7 +91,6 @@ public class UsuarioService {
                 pref.getTema(), pref.getSonsAtivos(), pref.getTamanhoInterface(), pref.getUsaPin());
     }
 
-    // Mapeamento manual rápido. Recomendo usar MapStruct se o projeto escalar muito.
     private UsuarioMeResponseDTO mapearParaDTO(Usuario usuario) {
         UsuarioPreferencias pref = usuario.getPreferencias();
         UsuarioPreferenciasResponseDTO prefDTO = null;

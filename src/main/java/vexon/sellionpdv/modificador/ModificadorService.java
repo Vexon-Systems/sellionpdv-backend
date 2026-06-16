@@ -3,6 +3,8 @@ package vexon.sellionpdv.modificador;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.modificador.dto.*;
 import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.produto.ProdutoRepository;
@@ -18,8 +20,8 @@ public class ModificadorService {
 
     @Transactional
     public GrupoResponseDTO criarGrupo(GrupoRequestDTO request) {
-        if(grupoRepository.existsByNomeIgnoreCase(request.nome())){
-            throw new RuntimeException("Já existe um grupo de modificadores com esse nome.");
+        if (grupoRepository.existsByNomeIgnoreCase(request.nome())) {
+            throw new BusinessException("Já existe um grupo de modificadores com esse nome.");
         }
 
         GrupoModificador grupo = GrupoModificador.builder()
@@ -34,11 +36,10 @@ public class ModificadorService {
             grupo.adicionarOpcao(opcao);
         });
 
-        GrupoModificador salvo = grupoRepository.save(grupo);
-
-        return mapToResponse(salvo);
+        return mapToResponse(grupoRepository.save(grupo));
     }
 
+    @Transactional(readOnly = true)
     public List<GrupoResponseDTO> listarGrupos() {
         return grupoRepository.findAllByAtivoTrue().stream()
                 .map(this::mapToResponse)
@@ -48,18 +49,17 @@ public class ModificadorService {
     @Transactional
     public GrupoResponseDTO atualizarGrupo(Long id, GrupoRequestDTO request) {
         GrupoModificador grupo = grupoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Grupo de modificadores não encontrado."));
 
         if (!grupo.getNome().equalsIgnoreCase(request.nome()) &&
                 grupoRepository.existsByNomeIgnoreCase(request.nome())) {
-            throw new RuntimeException("Já existe um grupo de modificadores com este nome.");
+            throw new BusinessException("Já existe um grupo de modificadores com este nome.");
         }
-        grupo.setNome(request.nome());
 
+        grupo.setNome(request.nome());
         grupo.getOpcoes().forEach(op -> op.setAtivo(false));
 
         for (OpcaoRequestDTO opRequest : request.opcoes()) {
-
             OpcaoModificador opcaoExistente = grupo.getOpcoes().stream()
                     .filter(op -> op.getNome().equalsIgnoreCase(opRequest.nome()))
                     .findFirst()
@@ -85,22 +85,16 @@ public class ModificadorService {
     @Transactional
     public void deletarGrupo(Long id) {
         GrupoModificador grupo = grupoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Grupo de modificadores não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Grupo de modificadores não encontrado."));
 
         List<Produto> produtosAfetados = produtoRepository.findByGruposModificadoresId(id);
-
-        produtosAfetados.forEach(produto -> {
-            produto.getGruposModificadores().remove(grupo);
-        });
-
+        produtosAfetados.forEach(produto -> produto.getGruposModificadores().remove(grupo));
         produtoRepository.saveAll(produtosAfetados);
 
         grupo.setAtivo(false);
         grupo.getOpcoes().forEach(op -> op.setAtivo(false));
-
         grupoRepository.save(grupo);
     }
-
 
     private GrupoResponseDTO mapToResponse(GrupoModificador grupo) {
         List<OpcaoResponseDTO> opcoesDto = grupo.getOpcoes().stream()

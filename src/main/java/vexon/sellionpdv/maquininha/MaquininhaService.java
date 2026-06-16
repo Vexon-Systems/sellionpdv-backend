@@ -3,6 +3,7 @@ package vexon.sellionpdv.maquininha;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.maquininha.dto.MaquininhaRequestDTO;
 import vexon.sellionpdv.maquininha.dto.MaquininhaResponseDTO;
 import vexon.sellionpdv.tenant.TenantContext;
@@ -15,6 +16,7 @@ public class MaquininhaService {
 
     private final MaquininhaRepository repository;
 
+    @Transactional(readOnly = true)
     public List<MaquininhaResponseDTO> listarTodas() {
         return repository.findAll().stream()
                 .map(MaquininhaResponseDTO::new)
@@ -40,7 +42,7 @@ public class MaquininhaService {
     @Transactional
     public MaquininhaResponseDTO atualizar(Long id, MaquininhaRequestDTO dto) {
         Maquininha maquininha = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maquininha não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Maquininha não encontrada."));
 
         maquininha.setNome(dto.nome());
         maquininha.setMarca(dto.marca());
@@ -54,8 +56,7 @@ public class MaquininhaService {
     @Transactional
     public void inativar(Long id) {
         Maquininha maquininha = repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Maquininha não encontrada."));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Maquininha não encontrada."));
         maquininha.setAtivo(false);
         repository.save(maquininha);
     }

@@ -1,11 +1,14 @@
 package vexon.sellionpdv.produto;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.categoria.Categoria;
 import vexon.sellionpdv.categoria.CategoriaRepository;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.modificador.GrupoModificador;
 import vexon.sellionpdv.modificador.GrupoModificadorRepository;
 import vexon.sellionpdv.produto.dto.*;
@@ -15,27 +18,38 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.UUID;
-
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class ProdutoService {
 
+    private static final Map<String, String> MIME_PARA_EXTENSAO = Map.of(
+            "image/jpeg", ".jpg",
+            "image/png",  ".png",
+            "image/webp", ".webp"
+    );
+
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
-
     private final GrupoModificadorRepository grupoRepository;
+
+    @Value("${app.uploads.base-url}")
+    private String uploadsBaseUrl;
+
+    @Value("${app.uploads.max-size-bytes}")
+    private long maxSizeBytes;
 
     @Transactional
     public ProdutoResponseDTO criarProduto(ProdutoRequestDTO request) {
         if (produtoRepository.existsByNomeIgnoreCase(request.nome())) {
-            throw new RuntimeException("Já existe um produto cadastrado com este nome.");
+            throw new BusinessException("Já existe um produto cadastrado com este nome.");
         }
 
         Categoria categoria = categoriaRepository.findById(request.categoriaId())
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
 
         Produto produto = Produto.builder()
                 .nome(request.nome())
@@ -51,30 +65,32 @@ public class ProdutoService {
         return mapToResponse(produtoRepository.save(produto));
     }
 
+    @Transactional(readOnly = true)
     public List<ProdutoResponseDTO> listarProdutos() {
-        return produtoRepository.findAllByAtivoTrue().stream()
+        return produtoRepository.findAllAtivosComGrupos().stream()
                 .map(this::mapToResponse)
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public ProdutoResponseDTO buscarPorId(Long id) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
         return mapToResponse(produto);
     }
 
     @Transactional
     public ProdutoResponseDTO atualizarProduto(Long id, ProdutoRequestDTO request) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
 
         if (!produto.getNome().equalsIgnoreCase(request.nome()) &&
                 produtoRepository.existsByNomeIgnoreCase(request.nome())) {
-            throw new RuntimeException("Já existe outro produto cadastrado com este nome.");
+            throw new BusinessException("Já existe outro produto cadastrado com este nome.");
         }
 
         Categoria categoria = categoriaRepository.findById(request.categoriaId())
-                .orElseThrow(() -> new RuntimeException("Categoria não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
 
         produto.setNome(request.nome());
         produto.setPrecoBase(request.precoBase());
@@ -91,9 +107,7 @@ public class ProdutoService {
     @Transactional
     public void inativarProduto(Long id) {
         Produto produto = produtoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Produto não encontrado."));
-
-        // Soft Delete
+                .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
         produto.setAtivo(false);
     }
 
@@ -122,7 +136,7 @@ public class ProdutoService {
                 relacaoExistente.setMaxOpcoes(dto.maxOpcoes() != null ? dto.maxOpcoes() : 1);
             } else {
                 GrupoModificador grupo = grupoRepository.findById(dto.grupoId())
-                        .orElseThrow(() -> new RuntimeException("Grupo não encontrado: " + dto.grupoId()));
+                        .orElseThrow(() -> new ResourceNotFoundException("Grupo não encontrado: " + dto.grupoId()));
 
                 ProdutoGrupoModificador novaRelacao = ProdutoGrupoModificador.builder()
                         .id(new ProdutoGrupoId())
@@ -189,31 +203,34 @@ public class ProdutoService {
     }
 
     public String uploadImagem(MultipartFile file) {
-        try {
-            if (file.isEmpty()) {
-                throw new RuntimeException("Arquivo vazio.");
-            }
+        if (file.isEmpty()) {
+            throw new BusinessException("Arquivo vazio.");
+        }
 
-            String fileName = UUID.randomUUID() + "-" + file.getOriginalFilename();
+        if (file.getSize() > maxSizeBytes) {
+            throw new BusinessException("Arquivo excede o tamanho máximo permitido de 5 MB.");
+        }
+
+        String contentType = file.getContentType();
+        String extensao = MIME_PARA_EXTENSAO.get(contentType);
+        if (extensao == null) {
+            throw new BusinessException("Tipo de arquivo não permitido. Envie uma imagem JPEG, PNG ou WebP.");
+        }
+
+        try {
+            String nomeArquivo = UUID.randomUUID() + extensao;
 
             Path uploadPath = Paths.get("uploads");
-
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
 
-            Path filePath = uploadPath.resolve(fileName);
+            Files.copy(file.getInputStream(), uploadPath.resolve(nomeArquivo), StandardCopyOption.REPLACE_EXISTING);
 
-            Files.copy(
-                    file.getInputStream(),
-                    filePath,
-                    StandardCopyOption.REPLACE_EXISTING
-            );
-
-            return "http://localhost:8080/uploads/" + fileName;
+            return uploadsBaseUrl + nomeArquivo;
 
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao fazer upload da imagem.");
+            throw new RuntimeException("Erro ao salvar a imagem. Tente novamente.");
         }
     }
 }

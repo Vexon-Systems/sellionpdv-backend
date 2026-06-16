@@ -15,5 +15,14 @@ public interface ProdutoRepository extends JpaRepository<Produto, Long> {
     @Query("SELECT p FROM Produto p JOIN FETCH p.categoria WHERE p.ativo = true")
     List<Produto> buscarCatalogoAtivoComCategoria();
 
+    @Query("""
+            SELECT DISTINCT p FROM Produto p
+            JOIN FETCH p.categoria
+            LEFT JOIN FETCH p.gruposModificadores pgm
+            LEFT JOIN FETCH pgm.grupo
+            WHERE p.ativo = true
+            """)
+    List<Produto> findAllAtivosComGrupos();
+
     List<Produto> findByGruposModificadoresId(Long id);
 }

@@ -6,6 +6,9 @@
 *.pem
 application-secret.properties
 
+### Upload directory (user content, not versioned) ###
+uploads/
+
 ### Logs ###
 *.log
 logs/

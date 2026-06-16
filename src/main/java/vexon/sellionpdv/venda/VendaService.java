@@ -5,9 +5,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.CaixaService;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
+import vexon.sellionpdv.common.service.UsuarioContextService;
 import vexon.sellionpdv.maquininha.MaquininhaRepository;
 import vexon.sellionpdv.modificador.OpcaoModificador;
-import vexon.sellionpdv.modificador.OpcaoModificadorRepository; // <-- NÃO ESQUEÇA DE IMPORTAR
+import vexon.sellionpdv.modificador.OpcaoModificadorRepository;
 import vexon.sellionpdv.produto.Produto;
 import vexon.sellionpdv.produto.ProdutoRepository;
 import vexon.sellionpdv.venda.dto.*;
@@ -31,7 +34,9 @@ public class VendaService {
     private final MaquininhaRepository maquininhaRepository;
     private final UsuarioRepository usuarioRepository;
     private final OpcaoModificadorRepository opcaoRepository;
+    private final UsuarioContextService usuarioContextService;
 
+    @Transactional(readOnly = true)
     public List<VendaResponseDTO> listarVendasCaixaAtual() {
         Caixa caixa = caixaService.buscarCaixaAtual();
         return vendaRepository.findByCaixa(caixa).stream()
@@ -42,12 +47,12 @@ public class VendaService {
     @Transactional
     public VendaResponseDTO registrarVenda(VendaRequestDTO dto, UUID idempotencyKey, String emailOperador) {
         vendaRepository.findByIdempotencyKey(idempotencyKey)
-                .ifPresent(v -> { throw new RuntimeException("Venda já processada com esta chave."); });
+                .ifPresent(v -> { throw new BusinessException("Venda já processada com esta chave."); });
 
         Caixa caixa = caixaService.buscarCaixaAtual();
 
         Usuario operador = usuarioRepository.findByEmailWithTenant(emailOperador)
-                .orElseThrow(() -> new RuntimeException("Operador não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Operador não encontrado."));
 
         Venda venda = Venda.builder()
                 .tenant(caixa.getTenant())
@@ -63,7 +68,7 @@ public class VendaService {
 
         List<ItemVenda> itens = dto.itens().stream().map(itemDto -> {
             Produto produto = produtoRepository.findById(itemDto.produtoId())
-                    .orElseThrow(() -> new RuntimeException("Produto não encontrado: " + itemDto.produtoId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado: " + itemDto.produtoId()));
 
             BigDecimal precoUnitarioCalculado = produto.getPrecoBase();
             List<ItemVendaModificador> modificadoresDoItem = new ArrayList<>();
@@ -79,14 +84,12 @@ public class VendaService {
 
                 for (Long opcaoId : itemDto.modificadores()) {
                     OpcaoModificador opcao = opcaoRepository.findById(opcaoId)
-                            .orElseThrow(() -> new RuntimeException("Opção de modificador não encontrada: " + opcaoId));
+                            .orElseThrow(() -> new ResourceNotFoundException("Opção de modificador não encontrada: " + opcaoId));
 
-                    // Soma o preço do adicional ao preço unitário base
                     if (opcao.getPrecoAdicional() != null) {
                         precoUnitarioCalculado = precoUnitarioCalculado.add(opcao.getPrecoAdicional());
                     }
 
-                    // Registra o modificador para o histórico
                     modificadoresDoItem.add(ItemVendaModificador.builder()
                             .tenant(venda.getTenant())
                             .itemVenda(itemVenda)
@@ -121,10 +124,9 @@ public class VendaService {
     @Transactional
     public void cancelarVenda(Long id, CancelamentoVendaRequestDTO dto) {
         Venda venda = vendaRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Venda não encontrada."));
+                .orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada."));
 
         venda.setStatus(StatusVenda.CANCELADA);
-
         venda.setJustificativaCancelamento(dto.justificativa());
         venda.setDataCancelamento(OffsetDateTime.now());
 
