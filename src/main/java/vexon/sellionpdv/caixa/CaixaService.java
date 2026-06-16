@@ -1,15 +1,16 @@
 package vexon.sellionpdv.caixa;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
+import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
+import vexon.sellionpdv.common.service.UsuarioContextService;
 import vexon.sellionpdv.tenant.TenantContext;
 import vexon.sellionpdv.tenant.Tenant;
 import vexon.sellionpdv.tenant.TenantRepository;
 import vexon.sellionpdv.usuario.Usuario;
-import vexon.sellionpdv.usuario.UsuarioRepository;
 import vexon.sellionpdv.venda.FormaPagamento;
 import vexon.sellionpdv.venda.Venda;
 
@@ -24,13 +25,14 @@ public class CaixaService {
     private final CaixaRepository caixaRepository;
     private final MovimentacaoCaixaRepository movimentacaoRepository;
     private final TenantRepository tenantRepository;
-    private final UsuarioRepository usuarioRepository;
+    private final UsuarioContextService usuarioContextService;
 
     public Caixa buscarCaixaAtual() {
         return caixaRepository.findByStatus(StatusCaixa.ABERTO)
-                .orElseThrow(() -> new RuntimeException("Nenhum caixa aberto encontrado para o tenant atual."));
+                .orElseThrow(() -> new ResourceNotFoundException("Nenhum caixa aberto encontrado para o tenant atual."));
     }
 
+    @Transactional(readOnly = true)
     public List<MovimentacaoCaixaResponseDTO> listarMovimentacoesCaixaAtual() {
         Caixa caixa = buscarCaixaAtual();
 
@@ -44,13 +46,13 @@ public class CaixaService {
     public Caixa abrirCaixa(CaixaRequestDTO dto) {
         caixaRepository.findByStatus(StatusCaixa.ABERTO)
                 .ifPresent(caixa -> {
-                    throw new RuntimeException("Já existe um caixa aberto.");
+                    throw new BusinessException("Já existe um caixa aberto.");
                 });
 
         Long tenantId = TenantContext.getCurrentTenant();
         Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
 
-        Usuario usuarioLogado = getUsuarioAutenticado();
+        Usuario usuarioLogado = usuarioContextService.getUsuarioAutenticado();
 
         Caixa caixa = Caixa.builder()
                 .tenant(tenant)
@@ -82,7 +84,7 @@ public class CaixaService {
     @Transactional
     public CaixaFechamentoResponseDTO fecharCaixa(CaixaFechamentoRequestDTO dto) {
         Caixa caixa = buscarCaixaAtual();
-        Usuario usuarioLogado = getUsuarioAutenticado();
+        Usuario usuarioLogado = usuarioContextService.getUsuarioAutenticado();
         List<MovimentacaoCaixa> movimentacoes = movimentacaoRepository.findByCaixa(caixa);
 
         BigDecimal totalReforcos = movimentacoes.stream()
@@ -126,12 +128,5 @@ public class CaixaService {
                 dto.saldoFinalInformado(),
                 furoCaixa
         );
-    }
-
-    private Usuario getUsuarioAutenticado() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-
-        return usuarioRepository.findByEmailWithTenant(email)
-                .orElseThrow(() -> new RuntimeException("Usuário autenticado não encontrado."));
     }
 }

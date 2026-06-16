@@ -3,6 +3,7 @@ package vexon.sellionpdv.dashboard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.dashboard.dto.*;
 
@@ -12,6 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class DashboardController {
 
     private final DashboardService service;
@@ -57,5 +59,4 @@ public class DashboardController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
         return ResponseEntity.ok(service.obterDadosCaixa(dataInicial, dataFinal));
     }
-
 }
