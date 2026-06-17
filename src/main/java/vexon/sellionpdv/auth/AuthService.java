@@ -23,7 +23,7 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findByEmailWithTenant(request.email())
                 .orElseThrow(() -> new BusinessException("E-mail ou senha inválidos"));
 
-        if (!passwordEncoder.matches(request.senha(), usuario.getSenhaHash())) {
+        if (!passwordEncoder.matches(request.senha(), usuario.getSenhaHash()) || !usuario.getAtivo()) {
             throw new BusinessException("E-mail ou senha inválidos");
         }
 

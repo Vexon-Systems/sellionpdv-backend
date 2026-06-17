@@ -35,7 +35,7 @@ class ProdutoServiceTest {
     void deveCriarProdutoComSucesso() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 1L
+                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 1L, null, null
         );
 
         Categoria categoriaSimulada = Categoria.builder().id(1L).nome("Açaí").build();
@@ -47,7 +47,7 @@ class ProdutoServiceTest {
                 .categoria(categoriaSimulada)
                 .build();
 
-        when(produtoRepository.existsByNomeIgnoreCase("Açaí 500ml")).thenReturn(false);
+        when(produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue("Açaí 500ml")).thenReturn(false);
         when(categoriaRepository.findById(1L)).thenReturn(Optional.of(categoriaSimulada));
         when(produtoRepository.save(any(Produto.class))).thenReturn(produtoSalvoSimulado);
 
@@ -68,10 +68,10 @@ class ProdutoServiceTest {
     void naoDeveCriarProdutoComNomeDuplicado() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 1L
+                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 1L, null, null
         );
 
-        when(produtoRepository.existsByNomeIgnoreCase("Açaí 500ml")).thenReturn(true);
+        when(produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue("Açaí 500ml")).thenReturn(true);
 
         // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
@@ -87,10 +87,10 @@ class ProdutoServiceTest {
     void naoDeveCriarProdutoComCategoriaInvalida() {
         // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
-                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, 999L
+                "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 999L, null, null
         );
 
-        when(produtoRepository.existsByNomeIgnoreCase("Açaí 500ml")).thenReturn(false);
+        when(produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue("Açaí 500ml")).thenReturn(false);
         when(categoriaRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert

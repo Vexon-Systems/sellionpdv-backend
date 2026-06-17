@@ -1,12 +1,21 @@
 package vexon.sellionpdv.usuario;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.usuario.dto.*;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -14,6 +23,15 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.uploads.base-url}")
+    private String uploadsBaseUrl;
+
+    private static final Map<String, String> MIME_PARA_EXTENSAO = Map.of(
+            "image/jpeg", ".jpg",
+            "image/png", ".png",
+            "image/webp", ".webp"
+    );
 
     private Usuario buscarUsuarioLogadoSeguro(String email) {
         return usuarioRepository.findByEmailWithTenant(email)
@@ -89,6 +107,32 @@ public class UsuarioService {
 
         return new UsuarioPreferenciasResponseDTO(
                 pref.getTema(), pref.getSonsAtivos(), pref.getTamanhoInterface(), pref.getUsaPin());
+    }
+
+    @Transactional
+    public Map<String, String> uploadAvatar(String email, MultipartFile file) {
+        Usuario usuario = buscarUsuarioLogadoSeguro(email);
+
+        if (file.isEmpty()) throw new BusinessException("Arquivo vazio.");
+        if (file.getSize() > 5_242_880L) throw new BusinessException("Arquivo excede o tamanho máximo de 5 MB.");
+
+        String extensao = MIME_PARA_EXTENSAO.get(file.getContentType());
+        if (extensao == null) throw new BusinessException("Tipo de arquivo não permitido. Envie uma imagem JPEG, PNG ou WebP.");
+
+        try {
+            String nomeArquivo = UUID.randomUUID() + extensao;
+            Path uploadPath = Paths.get("uploads");
+            if (!Files.exists(uploadPath)) Files.createDirectories(uploadPath);
+            Files.copy(file.getInputStream(), uploadPath.resolve(nomeArquivo), StandardCopyOption.REPLACE_EXISTING);
+
+            String avatarUrl = uploadsBaseUrl + nomeArquivo;
+            usuario.setAvatarUrl(avatarUrl);
+            usuarioRepository.save(usuario);
+
+            return Map.of("avatarUrl", avatarUrl);
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao salvar a imagem. Tente novamente.");
+        }
     }
 
     private UsuarioMeResponseDTO mapearParaDTO(Usuario usuario) {
