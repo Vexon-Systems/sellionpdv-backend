@@ -1,0 +1,29 @@
+# Artefatos de build (gerados dentro do container)
+target/
+
+# IDE
+.idea/
+*.iml
+
+# Logs de crash da JVM
+hs_err_pid*.log
+replay_pid*.log
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Uploads locais (não fazem parte da imagem; montar como volume)
+uploads/
+
+# SEGURANÇA: nunca incluir credenciais reais na imagem Docker.
+# Em produção, passe DB_URL, DB_PASSWORD, JWT_SECRET como variáveis
+# de ambiente (--env-file ou secrets do orquestrador).
+src/main/resources/application-secret.properties
+
+# Documentação e arquivos que não afetam o build
+README.md
+HELP.md
+STATE.md
+docs/
