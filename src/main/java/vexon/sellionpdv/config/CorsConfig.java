@@ -26,7 +26,11 @@ public class CorsConfig {
         config.setAllowedHeaders(List.of(
                 "Authorization",
                 "Content-Type",
-                "X-Idempotency-Key"
+                "Idempotency-Key",
+                "X-Idempotency-Key",
+                "Accept",
+                "Origin",
+                "X-Requested-With"
         ));
         config.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"

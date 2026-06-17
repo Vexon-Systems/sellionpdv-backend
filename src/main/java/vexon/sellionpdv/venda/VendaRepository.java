@@ -78,7 +78,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     @Query(value = "SELECT v FROM Venda v JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
             "WHERE (:status IS NULL OR v.status = :status)",
             countQuery = "SELECT count(v) FROM Venda v WHERE (:status IS NULL OR v.status = :status)")
-    Page<Venda> buscarRelatorioVendas(@Param("status") String status, Pageable pageable);
+    Page<Venda> buscarRelatorioVendas(@Param("status") StatusVenda status, Pageable pageable);
 
     // Busca os detalhes profundos de uma única venda (Recibo)
     @Query("SELECT v FROM Venda v " +

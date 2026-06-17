@@ -48,6 +48,9 @@ public class ItemVenda {
     @Column(name = "subtotal_item", nullable = false)
     private BigDecimal subtotalItem;
 
+    @Column(name = "custo_estimado_unitario")
+    private BigDecimal custoEstimadoUnitario;
+
     @Builder.Default
     @OneToMany(mappedBy = "itemVenda", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemVendaModificador> modificadores = new ArrayList<>();

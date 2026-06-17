@@ -9,5 +9,5 @@ import java.util.List;
 public interface CategoriaRepository extends JpaRepository<Categoria, Long> {
     boolean existsByNomeIgnoreCase(String nome);
 
-    List<Categoria> findAllByAtivoTrue();
+    List<Categoria> findAllByAtivoTrueOrderByIdAsc();
 }

@@ -33,7 +33,7 @@ public class CategoriaService {
 
     @Transactional(readOnly = true)
     public List<CategoriaResponseDTO> listarCategorias() {
-        return categoriaRepository.findAllByAtivoTrue().stream()
+        return categoriaRepository.findAllByAtivoTrueOrderByIdAsc().stream()
                 .map(cat -> new CategoriaResponseDTO(cat.getId(), cat.getNome()))
                 .toList();
     }

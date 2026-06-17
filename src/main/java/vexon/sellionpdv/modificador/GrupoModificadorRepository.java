@@ -7,7 +7,7 @@ import java.util.List;
 
 @Repository
 public interface GrupoModificadorRepository extends JpaRepository<GrupoModificador, Long> {
-    boolean existsByNomeIgnoreCase(String nome);
+    boolean existsByNomeIgnoreCaseAndAtivoTrue(String nome);
 
     List<GrupoModificador> findAllByAtivoTrue();
 }
