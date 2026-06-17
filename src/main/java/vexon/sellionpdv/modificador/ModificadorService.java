@@ -20,7 +20,7 @@ public class ModificadorService {
 
     @Transactional
     public GrupoResponseDTO criarGrupo(GrupoRequestDTO request) {
-        if (grupoRepository.existsByNomeIgnoreCase(request.nome())) {
+        if (grupoRepository.existsByNomeIgnoreCaseAndAtivoTrue(request.nome())) {
             throw new BusinessException("Já existe um grupo de modificadores com esse nome.");
         }
 
@@ -52,7 +52,7 @@ public class ModificadorService {
                 .orElseThrow(() -> new ResourceNotFoundException("Grupo de modificadores não encontrado."));
 
         if (!grupo.getNome().equalsIgnoreCase(request.nome()) &&
-                grupoRepository.existsByNomeIgnoreCase(request.nome())) {
+                grupoRepository.existsByNomeIgnoreCaseAndAtivoTrue(request.nome())) {
             throw new BusinessException("Já existe um grupo de modificadores com este nome.");
         }
 
@@ -87,8 +87,9 @@ public class ModificadorService {
         GrupoModificador grupo = grupoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Grupo de modificadores não encontrado."));
 
-        List<Produto> produtosAfetados = produtoRepository.findByGruposModificadoresId(id);
-        produtosAfetados.forEach(produto -> produto.getGruposModificadores().remove(grupo));
+        List<Produto> produtosAfetados = produtoRepository.findByGrupoModificadorId(id);
+        produtosAfetados.forEach(produto ->
+                produto.getGruposModificadores().removeIf(pgm -> pgm.getGrupo().getId().equals(id)));
         produtoRepository.saveAll(produtosAfetados);
 
         grupo.setAtivo(false);

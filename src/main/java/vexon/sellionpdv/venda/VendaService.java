@@ -78,6 +78,7 @@ public class VendaService {
                     .venda(venda)
                     .produto(produto)
                     .quantidade(itemDto.quantidade())
+                    .custoEstimadoUnitario(produto.getCustoEstimado() != null ? produto.getCustoEstimado() : BigDecimal.ZERO)
                     .build();
 
             if (itemDto.modificadores() != null && !itemDto.modificadores().isEmpty()) {

@@ -44,9 +44,11 @@ public class ProdutoService {
 
     @Transactional
     public ProdutoResponseDTO criarProduto(ProdutoRequestDTO request) {
-        if (produtoRepository.existsByNomeIgnoreCase(request.nome())) {
+        if (produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue(request.nome())) {
             throw new BusinessException("Já existe um produto cadastrado com este nome.");
         }
+
+        validarCustoNaoSuperaPreco(request.custoEstimado(), request.precoBase());
 
         Categoria categoria = categoriaRepository.findById(request.categoriaId())
                 .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
@@ -85,9 +87,11 @@ public class ProdutoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
 
         if (!produto.getNome().equalsIgnoreCase(request.nome()) &&
-                produtoRepository.existsByNomeIgnoreCase(request.nome())) {
+                produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue(request.nome())) {
             throw new BusinessException("Já existe outro produto cadastrado com este nome.");
         }
+
+        validarCustoNaoSuperaPreco(request.custoEstimado(), request.precoBase());
 
         Categoria categoria = categoriaRepository.findById(request.categoriaId())
                 .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
@@ -109,6 +113,12 @@ public class ProdutoService {
         Produto produto = produtoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
         produto.setAtivo(false);
+    }
+
+    private void validarCustoNaoSuperaPreco(BigDecimal custoEstimado, BigDecimal precoBase) {
+        if (custoEstimado != null && precoBase != null && custoEstimado.compareTo(precoBase) > 0) {
+            throw new BusinessException("O custo estimado não pode ser maior que o preço de venda.");
+        }
     }
 
     private void sincronizarGruposNoProduto(Produto produto, List<ProdutoGrupoRequestDTO> gruposRequest) {

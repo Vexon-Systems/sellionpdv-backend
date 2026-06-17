@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.relatorio.dto.*;
+import vexon.sellionpdv.venda.StatusVenda;
 import vexon.sellionpdv.venda.Venda;
 import vexon.sellionpdv.venda.VendaRepository;
 import vexon.sellionpdv.relatorio.dto.RelatorioCaixaDTO;
@@ -30,7 +31,8 @@ public class RelatorioService {
 
     @Transactional(readOnly = true)
     public Page<RelatorioVendaDTO> listarVendas(String status, Pageable pageable) {
-        Page<Venda> paginaVendas = vendaRepository.buscarRelatorioVendas(status, pageable);
+        StatusVenda statusEnum = (status == null || status.isBlank()) ? null : StatusVenda.valueOf(status);
+        Page<Venda> paginaVendas = vendaRepository.buscarRelatorioVendas(statusEnum, pageable);
 
         // Mapeia a Entidade para o DTO de forma segura
         return paginaVendas.map(v -> new RelatorioVendaDTO(
@@ -124,8 +126,8 @@ public class RelatorioService {
 
                 // 4.2 Cálculo do Custo da Mercadoria Vendida (CMV)
                 for (var item : venda.getItens()) {
-                    BigDecimal custoEstimado = item.getProduto().getCustoEstimado() != null
-                            ? item.getProduto().getCustoEstimado()
+                    BigDecimal custoEstimado = item.getCustoEstimadoUnitario() != null
+                            ? item.getCustoEstimadoUnitario()
                             : BigDecimal.ZERO;
 
                     BigDecimal custoTotalItem = custoEstimado.multiply(new BigDecimal(item.getQuantidade()));
@@ -268,8 +270,8 @@ public class RelatorioService {
         }
         
         for (var item : venda.getItens()) {
-            BigDecimal custoEstimado = item.getProduto().getCustoEstimado() != null
-                    ? item.getProduto().getCustoEstimado()
+            BigDecimal custoEstimado = item.getCustoEstimadoUnitario() != null
+                    ? item.getCustoEstimadoUnitario()
                     : BigDecimal.ZERO;
             custosTotais = custosTotais.add(custoEstimado.multiply(new BigDecimal(item.getQuantidade())));
         }
