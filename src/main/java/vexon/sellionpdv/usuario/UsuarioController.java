@@ -6,7 +6,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.usuario.dto.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/usuarios")
@@ -47,5 +50,12 @@ public class UsuarioController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestBody @Valid UsuarioPinRequestDTO request) {
         return ResponseEntity.ok(usuarioService.atualizarPin(userDetails.getUsername(), request));
+    }
+
+    @PostMapping("/me/avatar")
+    public ResponseEntity<Map<String, String>> uploadAvatar(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(usuarioService.uploadAvatar(userDetails.getUsername(), file));
     }
 }

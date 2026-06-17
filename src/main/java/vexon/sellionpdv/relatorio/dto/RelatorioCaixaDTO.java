@@ -11,7 +11,7 @@ public record RelatorioCaixaDTO(
         OffsetDateTime dataAbertura,
         OffsetDateTime dataFechamento,
         BigDecimal saldoInicial,
-        BigDecimal totalVendasDinheiro,
+        BigDecimal totalVendas,
         BigDecimal totalSangrias,
         BigDecimal totalReforcos,
         BigDecimal saldoFinalCalculado,
@@ -26,7 +26,7 @@ public record RelatorioCaixaDTO(
             OffsetDateTime dataAbertura,
             OffsetDateTime dataFechamento,
             BigDecimal saldoInicial,
-            BigDecimal totalVendasDinheiroRaw,
+            BigDecimal totalVendasRaw,
             BigDecimal totalSangriasRaw,
             BigDecimal totalReforcosRaw,
             BigDecimal saldoFinalInformado
@@ -39,12 +39,12 @@ public record RelatorioCaixaDTO(
                 dataAbertura,
                 dataFechamento,
                 tratarNulo(saldoInicial),
-                tratarNulo(totalVendasDinheiroRaw),
+                tratarNulo(totalVendasRaw),
                 tratarNulo(totalSangriasRaw),
                 tratarNulo(totalReforcosRaw),
-                calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw),
+                calcularSaldoFinal(saldoInicial, totalVendasRaw, totalReforcosRaw, totalSangriasRaw),
                 tratarNulo(saldoFinalInformado),
-                calcularFuro(saldoFinalInformado, calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw), status)
+                calcularFuro(saldoFinalInformado, calcularSaldoFinal(saldoInicial, totalVendasRaw, totalReforcosRaw, totalSangriasRaw), status)
         );
     }
 

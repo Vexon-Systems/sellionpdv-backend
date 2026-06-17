@@ -55,7 +55,7 @@ class CategoriaServiceTest {
             categoriaService.criarCategoria(request);
         });
 
-        assertEquals("Já existe uma categoria cadastrada com esse nome", exception.getMessage());
+        assertEquals("Já existe uma categoria cadastrada com esse nome.", exception.getMessage());
 
         // Segurança: Verifica se o método save NUNCA foi chamado, prevenindo que suje o banco
         verify(categoriaRepository, never()).save(any(Categoria.class));

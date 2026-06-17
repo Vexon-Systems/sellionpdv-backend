@@ -36,7 +36,7 @@ public class SecurityFilter extends OncePerRequestFilter {
 
                     var usuario = usuarioRepository.findByEmailWithTenant(email);
 
-                    if (usuario.isPresent()) {
+                    if (usuario.isPresent() && usuario.get().getAtivo()) {
                         var userDetails = org.springframework.security.core.userdetails.User
                                 .withUsername(usuario.get().getEmail())
                                 .password(usuario.get().getSenhaHash())

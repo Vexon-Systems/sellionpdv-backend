@@ -12,6 +12,7 @@ import vexon.sellionpdv.tenant.Tenant;
 import vexon.sellionpdv.tenant.TenantRepository;
 import vexon.sellionpdv.usuario.Usuario;
 import vexon.sellionpdv.venda.FormaPagamento;
+import vexon.sellionpdv.venda.StatusVenda;
 import vexon.sellionpdv.venda.Venda;
 
 import java.math.BigDecimal;
@@ -99,13 +100,21 @@ public class CaixaService {
 
         List<Venda> vendasAtuais = caixa.getVendas() != null ? caixa.getVendas() : List.of();
 
-        BigDecimal totalVendasDinheiro = vendasAtuais.stream()
+        List<Venda> vendasConcluidas = vendasAtuais.stream()
+                .filter(v -> v.getStatus() == StatusVenda.CONCLUIDA)
+                .toList();
+
+        BigDecimal totalVendasDinheiro = vendasConcluidas.stream()
                 .filter(v -> v.getFormaPagamento() == FormaPagamento.DINHEIRO)
                 .map(Venda::getTotalFinal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        BigDecimal totalTodasVendas = vendasConcluidas.stream()
+                .map(Venda::getTotalFinal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         BigDecimal saldoEsperado = caixa.getSaldoInicial()
-                .add(totalVendasDinheiro)
+                .add(totalTodasVendas)
                 .add(totalReforcos)
                 .subtract(totalSangrias);
 
