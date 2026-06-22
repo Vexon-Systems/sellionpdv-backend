@@ -1,7 +1,9 @@
 package vexon.sellionpdv.maquininha.dto;
 
 import vexon.sellionpdv.maquininha.Maquininha;
+import vexon.sellionpdv.maquininha.TaxaMaquininha;
 import java.math.BigDecimal;
+import java.util.List;
 
 public record MaquininhaResponseDTO(
         Long id,
@@ -9,7 +11,8 @@ public record MaquininhaResponseDTO(
         String marca,
         BigDecimal taxaDebito,
         BigDecimal taxaCredito,
-        Boolean ativo
+        Boolean ativo,
+        List<TaxaMaquininhaDTO> taxasPorBandeira
 ) {
     public MaquininhaResponseDTO(Maquininha m) {
         this(
@@ -18,7 +21,10 @@ public record MaquininhaResponseDTO(
                 m.getMarca(),
                 m.getTaxaDebito(),
                 m.getTaxaCredito(),
-                m.getAtivo()
+                m.getAtivo(),
+                m.getTaxasPorBandeira().stream()
+                        .map(t -> new TaxaMaquininhaDTO(t.getBandeira(), t.getTipo(), t.getTaxa()))
+                        .toList()
         );
     }
 }

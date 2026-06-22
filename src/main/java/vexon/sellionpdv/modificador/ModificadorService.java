@@ -32,6 +32,7 @@ public class ModificadorService {
             OpcaoModificador opcao = OpcaoModificador.builder()
                     .nome(optDto.nome())
                     .precoAdicional(optDto.precoAdicional())
+                    .custoEstimado(optDto.custoEstimado())
                     .build();
             grupo.adicionarOpcao(opcao);
         });
@@ -67,11 +68,13 @@ public class ModificadorService {
 
             if (opcaoExistente != null) {
                 opcaoExistente.setPrecoAdicional(opRequest.precoAdicional());
+                opcaoExistente.setCustoEstimado(opRequest.custoEstimado());
                 opcaoExistente.setAtivo(true);
             } else {
                 OpcaoModificador novaOpcao = OpcaoModificador.builder()
                         .nome(opRequest.nome())
                         .precoAdicional(opRequest.precoAdicional())
+                        .custoEstimado(opRequest.custoEstimado())
                         .grupo(grupo)
                         .ativo(true)
                         .build();
@@ -99,7 +102,8 @@ public class ModificadorService {
 
     private GrupoResponseDTO mapToResponse(GrupoModificador grupo) {
         List<OpcaoResponseDTO> opcoesDto = grupo.getOpcoes().stream()
-                .map(o -> new OpcaoResponseDTO(o.getId(), o.getNome(), o.getPrecoAdicional()))
+                .filter(o -> Boolean.TRUE.equals(o.getAtivo()))
+                .map(o -> new OpcaoResponseDTO(o.getId(), o.getNome(), o.getPrecoAdicional(), o.getCustoEstimado()))
                 .toList();
         return new GrupoResponseDTO(grupo.getId(), grupo.getNome(), opcoesDto);
     }

@@ -2,6 +2,7 @@ package vexon.sellionpdv.venda.dto;
 
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import vexon.sellionpdv.maquininha.BandeiraCartao;
 import vexon.sellionpdv.venda.FormaPagamento;
 
 import java.math.BigDecimal;
@@ -15,6 +16,8 @@ public record VendaRequestDTO(
         FormaPagamento formaPagamento,
 
         Long maquininhaId,
+
+        BandeiraCartao bandeiraCartao,
 
         BigDecimal descontoAplicado
 ) {}

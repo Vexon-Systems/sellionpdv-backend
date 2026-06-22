@@ -36,6 +36,9 @@ public class OpcaoModificador {
     @Column(name = "preco_adicional")
     private BigDecimal precoAdicional = BigDecimal.ZERO;
 
+    @Column(name = "custo_estimado")
+    private BigDecimal custoEstimado;
+
     @Builder.Default
     @Column(name = "ativo", nullable = false)
     private Boolean ativo = true;

@@ -11,5 +11,8 @@ public record OpcaoRequestDTO(
 
         @NotNull(message = "O preço adicional é obrigatório")
         @PositiveOrZero(message = "O preço não pode ser negativo")
-        BigDecimal precoAdicional
+        BigDecimal precoAdicional,
+
+        @PositiveOrZero(message = "O custo não pode ser negativo")
+        BigDecimal custoEstimado
 ) {}

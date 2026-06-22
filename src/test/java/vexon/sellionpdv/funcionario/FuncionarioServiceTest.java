@@ -57,7 +57,7 @@ class FuncionarioServiceTest {
                 .build();
     }
 
-    // --- GET /api/funcionarios ---
+    // GET /api/funcionarios
 
     @Test
     @DisplayName("Deve listar todos os funcionários ativos do tenant")
@@ -98,7 +98,7 @@ class FuncionarioServiceTest {
         assertTrue(resultado.isEmpty());
     }
 
-    // --- POST /api/funcionarios ---
+    // POST /api/funcionarios
 
     @Test
     @DisplayName("Deve criar um funcionário com sucesso quando o e-mail não existir")
@@ -176,7 +176,7 @@ class FuncionarioServiceTest {
         verify(usuarioRepository, never()).save(any(Usuario.class));
     }
 
-    // --- PUT /api/funcionarios/{id} ---
+    // PUT /api/funcionarios/{id}
 
     @Test
     @DisplayName("Deve atualizar nome e role do funcionário com sucesso")
@@ -243,7 +243,7 @@ class FuncionarioServiceTest {
         verify(usuarioRepository, never()).save(any(Usuario.class));
     }
 
-    // --- DELETE /api/funcionarios/{id} ---
+    // DELETE /api/funcionarios/{id}
 
     @Test
     @DisplayName("Deve inativar funcionário aplicando soft delete e anonimizando o e-mail")

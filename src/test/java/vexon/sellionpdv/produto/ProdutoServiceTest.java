@@ -33,7 +33,6 @@ class ProdutoServiceTest {
     @Test
     @DisplayName("Deve criar um produto com sucesso quando todos os dados forem válidos")
     void deveCriarProdutoComSucesso() {
-        // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
                 "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 1L, null, null
         );
@@ -66,14 +65,12 @@ class ProdutoServiceTest {
     @Test
     @DisplayName("Deve lançar exceção ao tentar criar produto com nome já existente")
     void naoDeveCriarProdutoComNomeDuplicado() {
-        // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
                 "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 1L, null, null
         );
 
         when(produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue("Açaí 500ml")).thenReturn(true);
 
-        // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             produtoService.criarProduto(request);
         });
@@ -85,7 +82,6 @@ class ProdutoServiceTest {
     @Test
     @DisplayName("Deve lançar exceção ao tentar vincular a uma categoria inexistente")
     void naoDeveCriarProdutoComCategoriaInvalida() {
-        // Arrange
         ProdutoRequestDTO request = new ProdutoRequestDTO(
                 "Açaí 500ml", new BigDecimal("15.50"), BigDecimal.ZERO, true, 999L, null, null
         );
@@ -93,7 +89,6 @@ class ProdutoServiceTest {
         when(produtoRepository.existsByNomeIgnoreCaseAndAtivoTrue("Açaí 500ml")).thenReturn(false);
         when(categoriaRepository.findById(999L)).thenReturn(Optional.empty());
 
-        // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () -> {
             produtoService.criarProduto(request);
         });
