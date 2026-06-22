@@ -36,6 +36,8 @@ public class MaquininhaService {
                 .ativo(dto.ativo())
                 .build();
 
+        aplicarTaxasPorBandeira(maquininha, dto, tenantId);
+
         return new MaquininhaResponseDTO(repository.save(maquininha));
     }
 
@@ -50,7 +52,25 @@ public class MaquininhaService {
         maquininha.setTaxaCredito(dto.taxaCredito());
         maquininha.setAtivo(dto.ativo());
 
+        maquininha.getTaxasPorBandeira().clear();
+        aplicarTaxasPorBandeira(maquininha, dto, maquininha.getTenantId());
+
         return new MaquininhaResponseDTO(repository.save(maquininha));
+    }
+
+    private void aplicarTaxasPorBandeira(Maquininha maquininha, MaquininhaRequestDTO dto, Long tenantId) {
+        if (dto.taxasPorBandeira() == null || dto.taxasPorBandeira().isEmpty()) return;
+        dto.taxasPorBandeira().forEach(taxaDto ->
+                maquininha.getTaxasPorBandeira().add(
+                        TaxaMaquininha.builder()
+                                .tenantId(tenantId)
+                                .maquininha(maquininha)
+                                .bandeira(taxaDto.bandeira())
+                                .tipo(taxaDto.tipo())
+                                .taxa(taxaDto.taxa())
+                                .build()
+                )
+        );
     }
 
     @Transactional

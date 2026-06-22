@@ -35,12 +35,10 @@ class CategoriaServiceTest {
 
         CategoriaResponseDTO response = categoriaService.criarCategoria(request);
 
-        // Verificação
         assertNotNull(response);
         assertEquals(1L, response.id());
         assertEquals("Sorvetes de Massa", response.nome());
 
-        // Verifica se o método save do banco de dados falso foi realmente chamado exatamente 1 vez
         verify(categoriaRepository, times(1)).save(any(Categoria.class));
     }
 
@@ -57,7 +55,6 @@ class CategoriaServiceTest {
 
         assertEquals("Já existe uma categoria cadastrada com esse nome.", exception.getMessage());
 
-        // Segurança: Verifica se o método save NUNCA foi chamado, prevenindo que suje o banco
         verify(categoriaRepository, never()).save(any(Categoria.class));
     }
 }

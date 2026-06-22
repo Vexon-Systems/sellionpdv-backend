@@ -61,6 +61,7 @@ public class VendaService {
                 .status(StatusVenda.CONCLUIDA)
                 .formaPagamento(dto.formaPagamento())
                 .maquininha(dto.maquininhaId() != null ? maquininhaRepository.getReferenceById(dto.maquininhaId()) : null)
+                .bandeiraCartao(dto.bandeiraCartao())
                 .idempotencyKey(idempotencyKey)
                 .dataVenda(OffsetDateTime.now())
                 .descontoAplicado(dto.descontoAplicado() != null ? dto.descontoAplicado() : BigDecimal.ZERO)

@@ -5,6 +5,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vexon.sellionpdv.financeiro.LancamentoFinanceiro;
+import vexon.sellionpdv.financeiro.LancamentoFinanceiroRepository;
 import vexon.sellionpdv.relatorio.dto.*;
 import vexon.sellionpdv.venda.StatusVenda;
 import vexon.sellionpdv.venda.Venda;
@@ -19,7 +21,9 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +32,7 @@ public class RelatorioService {
 
     private final VendaRepository vendaRepository;
     private final RelatorioCaixaRepository relatorioCaixaRepository;
+    private final LancamentoFinanceiroRepository lancamentoRepository;
 
     @Transactional(readOnly = true)
     public Page<RelatorioVendaDTO> listarVendas(String status, Pageable pageable) {
@@ -141,15 +146,43 @@ public class RelatorioService {
         BigDecimal receitaLiquida = receitaBruta.subtract(totalDeducoes);
         BigDecimal lucroBruto = receitaLiquida.subtract(cmv);
 
-        // Proteção contra divisão por zero na margem
-        Double margemPercentual = 0.0;
+        // Proteção contra divisão por zero na margem bruta
+        Double margemBrutaPercentual = 0.0;
         if (receitaLiquida.compareTo(BigDecimal.ZERO) > 0) {
-            margemPercentual = lucroBruto.divide(receitaLiquida, 4, RoundingMode.HALF_UP)
+            margemBrutaPercentual = lucroBruto.divide(receitaLiquida, 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100"))
                     .doubleValue();
         }
 
-        // 6. Formatação e Retorno
+        // 6. Despesas Operacionais (lançamentos manuais do período)
+        List<LancamentoFinanceiro> lancamentos = lancamentoRepository
+                .findByDataReferenciaBetweenOrderByDataReferenciaDesc(dataInicial, dataFinal);
+
+        Map<String, BigDecimal> despesasPorCategoria = lancamentos.stream()
+                .collect(Collectors.groupingBy(
+                        l -> l.getCategoria().name(),
+                        Collectors.reducing(BigDecimal.ZERO, LancamentoFinanceiro::getValor, BigDecimal::add)
+                ));
+
+        List<DreDespesasOperacionaisDTO> despesasList = despesasPorCategoria.entrySet().stream()
+                .map(e -> new DreDespesasOperacionaisDTO(e.getKey(), e.getValue()))
+                .sorted(Comparator.comparing(DreDespesasOperacionaisDTO::total).reversed())
+                .toList();
+
+        BigDecimal totalDespesas = lancamentos.stream()
+                .map(LancamentoFinanceiro::getValor)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal lucroLiquido = lucroBruto.subtract(totalDespesas);
+
+        Double margemLiquidaPercentual = 0.0;
+        if (receitaLiquida.compareTo(BigDecimal.ZERO) > 0) {
+            margemLiquidaPercentual = lucroLiquido.divide(receitaLiquida, 4, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .doubleValue();
+        }
+
+        // 7. Formatação e Retorno
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         String rotuloPeriodo = dataInicial.format(formatter) + " a " + dataFinal.format(formatter);
 
@@ -160,7 +193,11 @@ public class RelatorioService {
                 receitaLiquida,
                 new DreCustosDTO(cmv),
                 lucroBruto,
-                margemPercentual
+                margemBrutaPercentual,
+                despesasList,
+                totalDespesas,
+                lucroLiquido,
+                margemLiquidaPercentual
         );
     }
 

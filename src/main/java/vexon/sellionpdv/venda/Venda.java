@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
 import vexon.sellionpdv.caixa.Caixa;
+import vexon.sellionpdv.maquininha.BandeiraCartao;
 import vexon.sellionpdv.maquininha.Maquininha;
 import vexon.sellionpdv.tenant.Tenant;
 import vexon.sellionpdv.usuario.Usuario;
@@ -50,6 +51,10 @@ public class Venda {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "maquininha_id")
     private Maquininha maquininha;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "bandeira_cartao", length = 20)
+    private BandeiraCartao bandeiraCartao;
 
     @Column(name = "justificativa_cancelamento", columnDefinition = "text")
     private String justificativaCancelamento;

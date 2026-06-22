@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
+import java.util.List;
 
 public record MaquininhaRequestDTO(
         @NotBlank(message = "O nome é obrigatório")
@@ -21,5 +22,7 @@ public record MaquininhaRequestDTO(
         BigDecimal taxaCredito,
 
         @NotNull(message = "O status ativo é obrigatório")
-        Boolean ativo
+        Boolean ativo,
+
+        List<TaxaMaquininhaDTO> taxasPorBandeira
 ) {}

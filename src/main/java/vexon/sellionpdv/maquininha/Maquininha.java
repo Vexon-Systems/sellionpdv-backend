@@ -5,6 +5,8 @@ import lombok.*;
 import org.hibernate.annotations.TenantId;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "maquininhas")
@@ -37,5 +39,9 @@ public class Maquininha {
 
     @Builder.Default
     @Column(nullable = false)
-    private Boolean ativo = true; // Necessário para o Soft-Delete
+    private Boolean ativo = true;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "maquininha", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TaxaMaquininha> taxasPorBandeira = new ArrayList<>();
 }
