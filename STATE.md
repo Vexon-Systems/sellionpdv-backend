@@ -1,32 +1,63 @@
 # Estado Atual do Sistema: Sellion PDV (Backend)
-**Última Atualização:** 04/04/2026 por Eduardo Gonçalves (Tech Lead)
+**Última Atualização:** 23/06/2026 por Eduardo Gonçalves (Tech Lead)
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
-**Stack:** Java 17+, Spring Boot 4 (Spring Framework 7), PostgreSQL (Supabase), JWT (Auth0), Argon2id, SpringDoc OpenAPI 3.
+**Stack:** Java 21, Spring Boot 3.x, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI 3.x.
 
-## 2. O Que Já Está Pronto (Fases 1 e 2 Concluídas)
-- [x] **Infraestrutura & Segurança:** Banco conectado, Migrations/Seeder funcionais, Auth JWT Stateless e isolamento de dados por Tenant (Hibernate 6).
-- [x] **Catálogo - Categorias:** CRUD completo com Soft Delete (campo `ativo`) e validação de nomes duplicados.
-- [x] **Catálogo - Modificadores:** Gestão de Grupos e Opções com lógica de "Merge" inteligente para evitar duplicidade e manter histórico.
-- [x] **Catálogo - Produtos:** - Entidade 100% fiel ao script SQL do Supabase.
-  - Relacionamento complexo com Modificadores via entidade intermediária `ProdutoGrupoModificador`.
-  - Implementação de **Sincronização Inteligente** (Merge) para salvar/atualizar vínculos sem conflitos de persistência do Hibernate.
-- [x] **Payload de Saída (Árvore JSON):** Rota de Produtos entrega uma árvore completa (Produto -> Grupos -> Opções) para otimização de performance no Frontend.
-- [x] **Documentação:** Swagger OpenAPI v3.0.2 configurado, autenticado e testado.
+## 2. O Que Já Está Pronto
 
-## 3. Em Andamento (Pausado)
-* **Status:** Transição entre a Fase 2 (Catálogo), finalizada com sucesso pelo Eduardo, para a Fase 3 (Caixa), que será liderada pelo Felipe.
+- [x] **Fase 1 — Infraestrutura & Segurança:** Banco conectado, auth JWT stateless, isolamento por Tenant via `@TenantId` do Hibernate 6.
+- [x] **Fase 2 — Catálogo:**
+  - Categorias: CRUD completo com soft delete.
+  - Modificadores: grupos e opções com merge inteligente (compare/remove/add).
+  - Produtos: entidade com ficha técnica, `ProdutoGrupoModificador` intermediária, payload profundo (árvore JSON).
+- [x] **Fase 3 — Operação de Caixa:**
+  - `Caixa`: abertura, sangria/reforço (`MovimentacaoCaixa`), fechamento cego com cálculo de furo.
+  - Regra: índice único no banco impede dois caixas ABERTOS para o mesmo tenant.
+- [x] **Fase 4 — Vendas:**
+  - `Venda` com `itens_venda` e `itens_venda_modificadores` (preços imutáveis gravados no momento da venda).
+  - Cancelamento via `CANCELADA` + justificativa (sem DELETE).
+  - Idempotência via `Idempotency-Key` UUID.
+  - Campo `bandeira_cartao` (enum `BandeiraCartao`: VISA, MASTERCARD, ELO, HIPERCARD, AMEX).
+- [x] **Fase 5 — Maquininhas:**
+  - Entidade `Maquininha` com soft delete e campos `taxaDebito` / `taxaCredito`.
+  - Tabela `taxas_maquininha` para taxas específicas por bandeira (`BandeiraCartao` × `TipoTransacaoCartao`).
+- [x] **Fase 6 — Dashboard:**
+  - KPIs, série temporal, top produtos, top adicionais, pagamentos por forma, resumo de caixa.
+- [x] **Fase 7 — Relatórios:**
+  - Listagem de vendas (paginada), detalhe da venda, listagem de caixas, comparativo de períodos, auditoria.
+  - DRE Gerencial: `receitaBruta → deducoes → receitaLiquida → custos → lucroBrutoEstimado → despesasOperacionais → lucroLiquido`.
+- [x] **Fase 8 — Equipe (Funcionários):**
+  - `Funcionario` entity: CRUD, soft delete, hash Argon2id na criação. E-mail imutável após criação.
+  - `role` restrito a `ROLE_ADMIN` ou `ROLE_OPERADOR`.
+- [x] **Fase 9 — Módulo Financeiro:**
+  - `LancamentoFinanceiro` entity: `id`, `tenant_id`, `descricao`, `valor (BigDecimal)`, `categoria (CategoriaLancamento enum)`, `data_referencia (LocalDate)`, `criado_em`.
+  - Hard delete (sem soft delete — dados operacionais sem necessidade de histórico retroativo).
+  - `RelatorioService.gerarDreGerencial()` agora agrega lançamentos do período para calcular `totalDespesasOperacionais`, `lucroLiquido` e `margemLiquidaPercentual`.
 
-## 4. Decisões de Arquitetura & Regras Vivas (ADRs)
-* **ADR 014 (Revisada):** Uso de entidade intermediária com chave composta para mapear `produto_grupos_modificadores` devido a campos extras (`min/max_opcoes`).
-* **ADR 015:** Adoção de SpringDoc OpenAPI 3.x para compatibilidade com Spring Boot 4/Spring Framework 7.
-* **ADR 016:** Padronização de Soft Delete via booleano `ativo` e filtragem automática por `@SQLRestriction` em todas as tabelas de catálogo.
-* **ADR 017:** Estratégia de "Payload Profundo" no GET de produtos para permitir cache em memória no Frontend e latência zero na venda.
-* **ADR 018:** Implementação de algoritmo de Sincronização (Compare/Remove/Add) no Service para gerir relacionamentos JPA com chaves compostas, evitando erros de contexto de persistência.
+## 3. Decisões de Arquitetura Vigentes (ADRs)
 
-## 5. Próximos Passos (Backlog para a Próxima Sessão)
-* **Iniciar Fase 3 (Operação de Frente de Caixa):**
-  * **Felipe:** Desenvolver as entidades `Caixa` e `MovimentacoesCaixa`.
-  * **Regra Crítica:** Validar e impedir a abertura de mais de um caixa simultâneo por Tenant.
-  * **Funcionalidade:** Implementar abertura (saldo inicial), sangrias/suprimentos e fechamento com cálculo de furo de caixa.
+| ADR | Decisão |
+|-----|---------|
+| 001 | Multi-tenancy via `@TenantId` do Hibernate 6 — nunca setar manualmente |
+| 003 | Package-by-Feature para organização dos domínios |
+| 004/005 | JWT HMAC256 (Auth0) + Argon2id para senhas |
+| 014 | Entidade intermediária `ProdutoGrupoModificador` para relação N:N com campos extras |
+| 015 | SpringDoc OpenAPI 3.x para documentação autogen |
+| 016 | Soft delete via `ativo = false` + `@SQLRestriction` para catálogo |
+| 017 | Payload profundo no GET de produtos para cache em RAM no frontend |
+| 018 | Algoritmo compare/remove/add no Service para sync de relacionamentos JPA |
+
+## 4. Hard Delete vs. Soft Delete
+
+| Soft Delete (`ativo = false`) | Hard Delete (`deleteById`) |
+|---|---|
+| produto, categoria, modificador, maquininha, funcionario | lancamento_financeiro, movimentacoes_caixa |
+
+## 5. Próximos Passos / Backlog
+
+- [ ] **Dark Mode:** Infraestrutura CSS já existe no frontend; falta migrar ~150 hardcodes `bg-white / text-gray-900` para variáveis CSS e criar `ThemeContext`.
+- [ ] **DRE com taxas por bandeira:** Atualmente o DRE usa `taxaDebito` / `taxaCredito` genérico; integrar `taxas_maquininha` para deduções por bandeira.
+- [ ] **Notificações:** Módulo de alertas operacionais (caixa com furo alto, produto sem vendas).
+- [ ] **Relatório de Equipe:** Produtividade por operador (vendas / turno).
