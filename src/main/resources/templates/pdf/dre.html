@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="'DRE Gerencial — ' + ${dre.periodo}">DRE Gerencial</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #111;
+            margin: 0;
+            padding: 0;
+        }
+        h1 { font-size: 18pt; margin: 0 0 4px 0; }
+        h2 {
+            font-size: 12pt;
+            margin: 16px 0 6px 0;
+            padding-bottom: 2px;
+            border-bottom: 1px solid #444;
+        }
+        .subtitle { font-size: 10pt; color: #555; margin: 0 0 12px 0; }
+        .header { margin-bottom: 12px; }
+
+        .kpis {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px 0;
+            margin: 12px 0 20px 0;
+        }
+        .kpis td {
+            vertical-align: top;
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            padding: 8px 10px;
+            width: 33%;
+        }
+        .kpis .label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            color: #666;
+            letter-spacing: 0.5px;
+        }
+        .kpis .valor {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        .kpis .margem {
+            font-size: 9pt;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        table.dre {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10pt;
+        }
+        table.dre td {
+            padding: 4px 6px;
+            vertical-align: top;
+        }
+        table.dre td.valor { text-align: right; width: 30%; }
+        table.dre .linha-topo td { border-top: 1px solid #ddd; }
+        table.dre .subtotal td {
+            font-weight: bold;
+            border-top: 1px solid #333;
+            padding-top: 6px;
+        }
+        table.dre .deducao td { color: #444; padding-left: 16px; }
+        table.dre .destaque td {
+            font-weight: bold;
+            font-size: 11pt;
+            background: #f2f2f2;
+        }
+
+        table.despesas {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+            margin-top: 4px;
+        }
+        table.despesas td { padding: 3px 6px; }
+        table.despesas td.valor { text-align: right; width: 30%; }
+        table.despesas tr td { border-bottom: 1px solid #eee; }
+
+        .positivo { color: #1e7a1e; }
+        .negativo { color: #b32020; }
+
+        .rodape {
+            margin-top: 24px;
+            font-size: 8pt;
+            color: #888;
+            text-align: center;
+        }
+        .sem-dados {
+            font-style: italic;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>DRE Gerencial</h1>
+        <div class="subtitle" th:text="'Período: ' + ${dre.periodo}">Período: --</div>
+    </div>
+
+    <table class="kpis">
+        <tr>
+            <td>
+                <div class="label">Receita Bruta</div>
+                <div class="valor" th:text="${dre.receitaBrutaFormatada}">R$ 0,00</div>
+            </td>
+            <td th:classappend="${dre.lucroBrutoNegativo} ? 'negativo' : 'positivo'">
+                <div class="label">Lucro Bruto</div>
+                <div class="valor" th:text="${dre.lucroBrutoFormatado}">R$ 0,00</div>
+                <div class="margem" th:text="'Margem ' + ${dre.margemBrutaFormatada}">Margem 0,00%</div>
+            </td>
+            <td th:classappend="${dre.lucroLiquidoNegativo} ? 'negativo' : 'positivo'">
+                <div class="label">Lucro Líquido</div>
+                <div class="valor" th:text="${dre.lucroLiquidoFormatado}">R$ 0,00</div>
+                <div class="margem" th:text="'Margem ' + ${dre.margemLiquidaFormatada}">Margem 0,00%</div>
+            </td>
+        </tr>
+    </table>
+
+    <h2>Demonstrativo</h2>
+    <table class="dre">
+        <tr class="linha-topo">
+            <td>Receita Bruta</td>
+            <td class="valor" th:text="${dre.receitaBrutaFormatada}">R$ 0,00</td>
+        </tr>
+        <tr class="linha-topo">
+            <td>(−) Deduções</td>
+            <td class="valor" th:text="${dre.totalDeducoesFormatado}">R$ 0,00</td>
+        </tr>
+        <tr class="deducao">
+            <td>Cancelamentos</td>
+            <td class="valor" th:text="${dre.totalCancelamentosFormatado}">R$ 0,00</td>
+        </tr>
+        <tr class="deducao">
+            <td>Taxas de maquininha</td>
+            <td class="valor" th:text="${dre.taxasMaquininhasFormatadas}">R$ 0,00</td>
+        </tr>
+        <tr class="subtotal">
+            <td>(=) Receita Líquida</td>
+            <td class="valor" th:text="${dre.receitaLiquidaFormatada}">R$ 0,00</td>
+        </tr>
+        <tr class="linha-topo">
+            <td>(−) Custo da Mercadoria Vendida (CMV)</td>
+            <td class="valor" th:text="${dre.cmvFormatado}">R$ 0,00</td>
+        </tr>
+        <tr class="destaque">
+            <td th:text="'(=) Lucro Bruto — Margem ' + ${dre.margemBrutaFormatada}">(=) Lucro Bruto</td>
+            <td class="valor"
+                th:classappend="${dre.lucroBrutoNegativo} ? 'negativo' : ''"
+                th:text="${dre.lucroBrutoFormatado}">R$ 0,00</td>
+        </tr>
+        <tr class="linha-topo">
+            <td>(−) Despesas Operacionais</td>
+            <td class="valor" th:text="${dre.totalDespesasFormatado}">R$ 0,00</td>
+        </tr>
+        <tr class="subtotal">
+            <td th:text="'(=) Lucro Líquido — Margem ' + ${dre.margemLiquidaFormatada}">(=) Lucro Líquido</td>
+            <td class="valor"
+                th:classappend="${dre.lucroLiquidoNegativo} ? 'negativo' : 'positivo'"
+                th:text="${dre.lucroLiquidoFormatado}">R$ 0,00</td>
+        </tr>
+    </table>
+
+    <h2>Despesas Operacionais por Categoria</h2>
+    <div th:if="${dre.semDespesas}" class="sem-dados">
+        Nenhuma despesa operacional lançada no período.
+    </div>
+    <table th:unless="${dre.semDespesas}" class="despesas">
+        <tr th:each="despesa : ${dre.despesas}">
+            <td th:text="${despesa.categoria}">Categoria</td>
+            <td class="valor" th:text="${despesa.valorFormatado}">R$ 0,00</td>
+        </tr>
+        <tr>
+            <td class="bold" style="font-weight:bold; border-top:1px solid #333;">Total</td>
+            <td class="valor" style="font-weight:bold; border-top:1px solid #333;"
+                th:text="${dre.totalDespesasFormatado}">R$ 0,00</td>
+        </tr>
+    </table>
+
+    <div class="rodape">
+        Relatório gerado pelo SellionPDV.
+    </div>
+
+</body>
+</html>

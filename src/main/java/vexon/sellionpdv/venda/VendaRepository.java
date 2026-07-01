@@ -81,9 +81,11 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     Page<Venda> buscarRelatorioVendas(@Param("status") StatusVenda status, Pageable pageable);
 
     // Busca os detalhes profundos de uma única venda (Recibo)
-    @Query("SELECT v FROM Venda v " +
+    @Query("SELECT DISTINCT v FROM Venda v " +
+            "JOIN FETCH v.tenant " +
             "JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
             "LEFT JOIN FETCH v.itens i LEFT JOIN FETCH i.produto " +
+            "LEFT JOIN FETCH i.modificadores m LEFT JOIN FETCH m.opcao " +
             "WHERE v.id = :id")
     Optional<Venda> buscarReciboComDetalhes(@Param("id") Long id);
 

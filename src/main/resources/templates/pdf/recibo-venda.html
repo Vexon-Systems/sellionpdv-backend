@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title th:text="'Recibo Venda #' + ${recibo.vendaId}">Recibo</title>
+    <style>
+        @page { size: 80mm 297mm; margin: 4mm; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+        .center { text-align: center; }
+        .bold   { font-weight: bold; }
+        .small  { font-size: 8pt; }
+        .divider {
+            border: 0;
+            border-top: 1px dashed #000;
+            margin: 4px 0;
+        }
+        .header h1 {
+            font-size: 12pt;
+            margin: 0;
+            padding: 0;
+        }
+        .header .meta {
+            font-size: 9pt;
+            margin-top: 2px;
+        }
+        .cancelada-banner {
+            background: #000;
+            color: #fff;
+            text-align: center;
+            font-weight: bold;
+            padding: 3px 0;
+            margin: 4px 0;
+            font-size: 11pt;
+            letter-spacing: 1px;
+        }
+        .justificativa {
+            font-size: 9pt;
+            margin: 2px 0 4px 0;
+        }
+        .itens .item {
+            display: block;
+            margin-bottom: 4px;
+        }
+        .itens .nome {
+            font-weight: bold;
+        }
+        .itens .mods {
+            font-size: 9pt;
+            margin-left: 8px;
+        }
+        .itens .qtde-preco {
+            font-size: 9pt;
+        }
+        .totais td.total-final {
+            font-size: 12pt;
+            font-weight: bold;
+            padding-top: 4px;
+        }
+        table.row { width: 100%; border-collapse: collapse; }
+        table.row td { padding: 0; vertical-align: top; }
+        table.row td.r { text-align: right; }
+    </style>
+</head>
+<body>
+
+    <div class="header center">
+        <h1 th:text="${recibo.nomeFantasia}">SellionPDV</h1>
+        <div class="meta">
+            <div>Recibo de Venda</div>
+            <div th:text="'Nº ' + ${recibo.vendaId}">Nº 0</div>
+            <div th:text="${recibo.dataFormatada}">00/00/0000 00:00</div>
+            <div th:text="'Operador: ' + ${recibo.operador}">Operador:</div>
+            <div th:text="'Pagamento: ' + ${recibo.formaPagamento}">Pagamento:</div>
+        </div>
+    </div>
+
+    <div th:if="${recibo.cancelada}">
+        <div class="cancelada-banner">VENDA CANCELADA</div>
+        <div class="justificativa">
+            <span class="bold">Cancelada em: </span>
+            <span th:text="${recibo.dataCancelamentoFormatada}">--</span>
+        </div>
+        <div class="justificativa" th:if="${recibo.justificativaCancelamento}">
+            <span class="bold">Motivo: </span>
+            <span th:text="${recibo.justificativaCancelamento}">--</span>
+        </div>
+    </div>
+
+    <hr class="divider"/>
+
+    <div class="itens">
+        <div th:each="linha : ${recibo.itens}" class="item">
+            <div class="nome" th:text="${linha.nomeProduto}">Produto</div>
+            <table class="row qtde-preco">
+                <tr>
+                    <td th:text="${linha.quantidade} + ' x ' + ${linha.precoUnitarioFormatado}">1 x R$ 0,00</td>
+                    <td class="r bold" th:text="${linha.subtotalItemFormatado}">R$ 0,00</td>
+                </tr>
+            </table>
+            <div class="mods" th:each="modificador : ${linha.modificadores}">
+                <span th:text="'+ ' + ${modificador}">+ modificador</span>
+            </div>
+        </div>
+    </div>
+
+    <hr class="divider"/>
+
+    <div class="totais">
+        <table class="row">
+            <tr>
+                <td>Subtotal</td>
+                <td class="r" th:text="${recibo.subtotalFormatado}">R$ 0,00</td>
+            </tr>
+            <tr th:if="${recibo.temDesconto}">
+                <td>Desconto</td>
+                <td class="r" th:text="'- ' + ${recibo.descontoFormatado}">- R$ 0,00</td>
+            </tr>
+            <tr>
+                <td class="total-final">TOTAL</td>
+                <td class="r total-final" th:text="${recibo.totalFormatado}">R$ 0,00</td>
+            </tr>
+        </table>
+    </div>
+
+    <hr class="divider"/>
+
+    <div class="center small">
+        <div>Obrigado pela preferência!</div>
+    </div>
+
+</body>
+</html>
