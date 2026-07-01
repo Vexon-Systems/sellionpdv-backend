@@ -7,10 +7,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.relatorio.dto.*;
+import vexon.sellionpdv.relatorio.pdf.CaixasPdfService;
+import vexon.sellionpdv.relatorio.pdf.DrePdfService;
+import vexon.sellionpdv.relatorio.pdf.HistoricoVendasPdfService;
 import org.springframework.data.domain.Sort;
 
 import java.time.LocalDate;
@@ -21,6 +27,9 @@ import java.time.LocalDate;
 public class RelatorioController {
 
     private final RelatorioService relatorioService;
+    private final DrePdfService drePdfService;
+    private final HistoricoVendasPdfService historicoVendasPdfService;
+    private final CaixasPdfService caixasPdfService;
 
     @GetMapping("/vendas")
     @PreAuthorize("hasRole('ADMIN')")
@@ -48,6 +57,58 @@ public class RelatorioController {
         }
 
         return ResponseEntity.ok(relatorioService.gerarDreGerencial(dataInicial, dataFinal));
+    }
+
+    @GetMapping("/dre.pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> baixarDrePdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
+
+        if (dataFinal.isBefore(dataInicial)) {
+            throw new BusinessException("A data final não pode ser anterior à data inicial.");
+        }
+
+        byte[] pdf = drePdfService.gerarDre(dataInicial, dataFinal);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"dre-" + dataInicial + "-a-" + dataFinal + ".pdf\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(pdf);
+    }
+
+    @GetMapping("/vendas.pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> baixarHistoricoVendasPdf(
+            @RequestParam(required = false) String status) {
+
+        byte[] pdf = historicoVendasPdfService.gerarHistorico(status);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"historico-vendas.pdf\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(pdf);
+    }
+
+    @GetMapping("/caixas.pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> baixarCaixasPdf(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
+
+        if (dataFinal.isBefore(dataInicial)) {
+            throw new BusinessException("A data final não pode ser anterior à data inicial.");
+        }
+
+        byte[] pdf = caixasPdfService.gerarCaixas(dataInicial, dataFinal);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"caixas-" + dataInicial + "-a-" + dataFinal + ".pdf\"")
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(pdf);
     }
 
     @GetMapping("/caixas")

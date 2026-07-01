@@ -22,6 +22,7 @@ import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.config.GlobalExceptionHandler;
+import vexon.sellionpdv.relatorio.pdf.ReciboVendaPdfService;
 import vexon.sellionpdv.venda.dto.ItemVendaRequestDTO;
 import vexon.sellionpdv.venda.dto.VendaRequestDTO;
 
@@ -29,7 +30,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static vexon.sellionpdv.venda.VendaTestFixtures.*;
@@ -54,6 +57,9 @@ class VendaControllerTest {
 
     @Mock
     private VendaService vendaService;
+
+    @Mock
+    private ReciboVendaPdfService reciboVendaPdfService;
 
     @InjectMocks
     private VendaController vendaController;
@@ -285,6 +291,39 @@ class VendaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{ json inválido }"))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    // ─── GET /api/vendas/{id}/recibo.pdf ────────────────────────────────────────
+
+    @Nested
+    @DisplayName("GET /api/vendas/{id}/recibo.pdf")
+    class BaixarRecibo {
+
+        @Test
+        @DisplayName("Deve retornar 200 com application/pdf e Content-Disposition de anexo")
+        void deve_Retornar200_comPdf_eHeadersCorretos() throws Exception {
+            byte[] pdfFake = "%PDF-1.4 fake".getBytes();
+            when(reciboVendaPdfService.gerarRecibo(eq(1L))).thenReturn(pdfFake);
+
+            mockMvc.perform(get("/api/vendas/1/recibo.pdf"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().contentType(MediaType.APPLICATION_PDF))
+                    .andExpect(header().string("Content-Disposition",
+                            "attachment; filename=\"recibo-venda-1.pdf\""))
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(content().bytes(pdfFake));
+        }
+
+        @Test
+        @DisplayName("Deve retornar 404 quando a venda não existe")
+        void deve_Retornar404_quando_VendaNaoExiste() throws Exception {
+            when(reciboVendaPdfService.gerarRecibo(eq(99L)))
+                    .thenThrow(new ResourceNotFoundException(
+                            "Venda não encontrada ou não pertence à franquia."));
+
+            mockMvc.perform(get("/api/vendas/99/recibo.pdf"))
+                    .andExpect(status().isNotFound());
         }
     }
 }

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Auditoria de Caixas</title>
+    <style>
+        @page { size: A4; margin: 12mm; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 9pt;
+            color: #111;
+            margin: 0;
+            padding: 0;
+        }
+        h1 { font-size: 18pt; margin: 0 0 4px 0; }
+        .subtitle { font-size: 10pt; color: #555; margin: 0 0 12px 0; }
+        .header { margin-bottom: 12px; }
+
+        .kpis {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px 0;
+            margin: 12px 0 20px 0;
+        }
+        .kpis td {
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            padding: 6px 8px;
+            width: 25%;
+            vertical-align: top;
+        }
+        .kpis .label {
+            font-size: 7pt;
+            text-transform: uppercase;
+            color: #666;
+            letter-spacing: 0.5px;
+        }
+        .kpis .valor {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 3px;
+        }
+
+        table.caixas {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 7.5pt;
+            table-layout: fixed;
+        }
+        table.caixas th {
+            text-align: left;
+            font-size: 7pt;
+            text-transform: uppercase;
+            color: #555;
+            border-bottom: 1px solid #333;
+            padding: 3px 4px;
+            vertical-align: bottom;
+        }
+        table.caixas th.r, table.caixas td.r { text-align: right; }
+        table.caixas td {
+            padding: 3px 4px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+            word-wrap: break-word;
+        }
+        table.caixas tr.aberto td { color: #666; font-style: italic; }
+        table.caixas .totais td {
+            font-weight: bold;
+            border-top: 2px solid #333;
+            border-bottom: none;
+            padding-top: 5px;
+            font-size: 8pt;
+        }
+
+        .positivo { color: #1e7a1e; }
+        .negativo { color: #b32020; }
+
+        .sem-dados {
+            font-style: italic;
+            color: #888;
+            margin-top: 12px;
+        }
+        .rodape {
+            margin-top: 24px;
+            font-size: 8pt;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Auditoria de Caixas</h1>
+        <div class="subtitle" th:text="'Período: ' + ${caixas.periodo}">Período: --</div>
+    </div>
+
+    <table class="kpis">
+        <tr>
+            <td>
+                <div class="label">Caixas no período</div>
+                <div class="valor" th:text="${caixas.qtdeCaixas}">0</div>
+            </td>
+            <td>
+                <div class="label">Total de vendas</div>
+                <div class="valor" th:text="${caixas.totalVendasFormatado}">R$ 0,00</div>
+            </td>
+            <td>
+                <div class="label">Sangrias / Reforços</div>
+                <div class="valor">
+                    <span th:text="${caixas.totalSangriasFormatado}">R$ 0,00</span>
+                    <span style="font-size:8pt; color:#666;"> / </span>
+                    <span th:text="${caixas.totalReforcosFormatado}">R$ 0,00</span>
+                </div>
+            </td>
+            <td>
+                <div class="label">Furo acumulado</div>
+                <div class="valor"
+                     th:classappend="${caixas.totalFuroNegativo} ? 'negativo' : (${caixas.totalFuroPositivo} ? 'positivo' : '')"
+                     th:text="${caixas.totalFuroFormatado}">R$ 0,00</div>
+            </td>
+        </tr>
+    </table>
+
+    <div th:if="${caixas.semDados}" class="sem-dados">
+        Nenhum caixa encontrado no período informado.
+    </div>
+
+    <table th:unless="${caixas.semDados}" class="caixas">
+        <colgroup>
+            <col style="width:4%"/>   <!-- ID -->
+            <col style="width:8%"/>   <!-- status -->
+            <col style="width:11%"/>  <!-- op abertura -->
+            <col style="width:11%"/>  <!-- op fechamento -->
+            <col style="width:10%"/>  <!-- data abertura -->
+            <col style="width:10%"/>  <!-- data fechamento -->
+            <col style="width:8%"/>   <!-- saldo inicial -->
+            <col style="width:8%"/>   <!-- vendas -->
+            <col style="width:7%"/>   <!-- sangrias -->
+            <col style="width:7%"/>   <!-- reforcos -->
+            <col style="width:8%"/>   <!-- calc -->
+            <col style="width:8%"/>   <!-- informado -->
+            <col style="width:8%"/>   <!-- furo -->
+        </colgroup>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Op. Abertura</th>
+                <th>Op. Fechamento</th>
+                <th>Abertura</th>
+                <th>Fechamento</th>
+                <th class="r">Sal. inicial</th>
+                <th class="r">Vendas</th>
+                <th class="r">Sangrias</th>
+                <th class="r">Reforços</th>
+                <th class="r">Sal. calc.</th>
+                <th class="r">Sal. inf.</th>
+                <th class="r">Furo</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="linha : ${caixas.linhas}" th:classappend="${linha.aberto} ? 'aberto' : ''">
+                <td th:text="${linha.caixaId}">1</td>
+                <td th:text="${linha.status}">--</td>
+                <td th:text="${linha.operadorAbertura}">--</td>
+                <td th:text="${linha.operadorFechamento} ?: '—'">—</td>
+                <td th:text="${linha.dataAberturaFormatada}">--</td>
+                <td th:text="${linha.dataFechamentoFormatada}">—</td>
+                <td class="r" th:text="${linha.saldoInicialFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${linha.totalVendasFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${linha.totalSangriasFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${linha.totalReforcosFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${linha.saldoCalculadoFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${linha.saldoInformadoFormatado}">R$ 0,00</td>
+                <td class="r"
+                    th:classappend="${linha.furoNegativo} ? 'negativo' : (${linha.furoPositivo} ? 'positivo' : '')"
+                    th:text="${linha.furoFormatado}">R$ 0,00</td>
+            </tr>
+            <tr class="totais">
+                <td colspan="7">Totais</td>
+                <td class="r" th:text="${caixas.totalVendasFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${caixas.totalSangriasFormatado}">R$ 0,00</td>
+                <td class="r" th:text="${caixas.totalReforcosFormatado}">R$ 0,00</td>
+                <td colspan="2"></td>
+                <td class="r"
+                    th:classappend="${caixas.totalFuroNegativo} ? 'negativo' : (${caixas.totalFuroPositivo} ? 'positivo' : '')"
+                    th:text="${caixas.totalFuroFormatado}">R$ 0,00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="rodape" th:text="'Relatório gerado em ' + ${caixas.geradoEm} + ' (America/Sao_Paulo)'">
+        Relatório gerado em --
+    </div>
+
+</body>
+</html>

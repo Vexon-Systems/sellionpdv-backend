@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Histórico de Vendas</title>
+    <style>
+        @page { size: A4; margin: 15mm; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #111;
+            margin: 0;
+            padding: 0;
+        }
+        h1 { font-size: 18pt; margin: 0 0 4px 0; }
+        .subtitle { font-size: 10pt; color: #555; margin: 0 0 12px 0; }
+        .header { margin-bottom: 12px; }
+
+        .kpis {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 6px 0;
+            margin: 12px 0 20px 0;
+        }
+        .kpis td {
+            border: 1px solid #bbb;
+            border-radius: 4px;
+            padding: 8px 10px;
+            width: 50%;
+            vertical-align: top;
+        }
+        .kpis .label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            color: #666;
+            letter-spacing: 0.5px;
+        }
+        .kpis .valor {
+            font-size: 14pt;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        table.vendas {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+        }
+        table.vendas th {
+            text-align: left;
+            font-size: 8pt;
+            text-transform: uppercase;
+            color: #555;
+            border-bottom: 1px solid #333;
+            padding: 4px 6px;
+        }
+        table.vendas th.r, table.vendas td.r { text-align: right; }
+        table.vendas td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+        table.vendas tr.cancelada td { color: #999; }
+        table.vendas .total-row td {
+            font-weight: bold;
+            border-top: 2px solid #333;
+            border-bottom: none;
+            padding-top: 6px;
+        }
+
+        .sem-dados {
+            font-style: italic;
+            color: #888;
+            margin-top: 12px;
+        }
+        .rodape {
+            margin-top: 24px;
+            font-size: 8pt;
+            color: #888;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Histórico de Vendas</h1>
+        <div class="subtitle" th:text="${historico.tituloFiltro}">Filtro: --</div>
+    </div>
+
+    <table class="kpis">
+        <tr>
+            <td>
+                <div class="label">Vendas no relatório</div>
+                <div class="valor" th:text="${historico.qtdeVendas}">0</div>
+            </td>
+            <td>
+                <div class="label">Total geral</div>
+                <div class="valor" th:text="${historico.totalGeralFormatado}">R$ 0,00</div>
+            </td>
+        </tr>
+    </table>
+
+    <div th:if="${historico.semDados}" class="sem-dados">
+        Nenhuma venda encontrada com o filtro atual.
+    </div>
+
+    <table th:unless="${historico.semDados}" class="vendas">
+        <thead>
+            <tr>
+                <th>Nº</th>
+                <th>Data / Hora</th>
+                <th>Operador</th>
+                <th>Pagamento</th>
+                <th>Status</th>
+                <th class="r">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="linha : ${historico.linhas}" th:classappend="${linha.cancelada} ? 'cancelada' : ''">
+                <td th:text="${linha.vendaId}">1</td>
+                <td th:text="${linha.dataFormatada}">--/--/---- --:--</td>
+                <td th:text="${linha.operador}">Operador</td>
+                <td th:text="${linha.formaPagamento}">--</td>
+                <td th:text="${linha.status}">--</td>
+                <td class="r" th:text="${linha.valorFormatado}">R$ 0,00</td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="5">Total geral</td>
+                <td class="r" th:text="${historico.totalGeralFormatado}">R$ 0,00</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="rodape" th:text="'Relatório gerado em ' + ${historico.geradoEm} + ' (America/Sao_Paulo)'">
+        Relatório gerado em --
+    </div>
+
+</body>
+</html>
