@@ -29,12 +29,6 @@ RUN addgroup -S spring && adduser -S spring -G spring
 
 WORKDIR /app
 
-# Diretório de uploads de imagens de produtos.
-# IMPORTANTE: monte este caminho como volume em produção para
-# que os arquivos persistam entre reinicializações do container.
-# Exemplo: -v /data/sellion-uploads:/app/uploads
-RUN mkdir -p /app/uploads && chown spring:spring /app/uploads
-
 COPY --from=builder /app/target/sellionpdv-*.jar app.jar
 
 USER spring

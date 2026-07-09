@@ -4,7 +4,7 @@ import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.StatusCaixa;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime; // Corrigido para OffsetDateTime
+import java.time.OffsetDateTime;
 
 public record CaixaResponseDTO(
         Long id,
@@ -13,7 +13,9 @@ public record CaixaResponseDTO(
         OffsetDateTime dataFechamento,
         BigDecimal saldoInicial,
         BigDecimal saldoFinalInformado,
-        BigDecimal furoCaixa
+        BigDecimal furoCaixa,
+        Long operadorAberturaId,
+        String operadorAberturaNome
 ) {
 
     public CaixaResponseDTO(Caixa caixa) {
@@ -24,7 +26,9 @@ public record CaixaResponseDTO(
                 caixa.getDataFechamento(),
                 caixa.getSaldoInicial(),
                 caixa.getSaldoFinalInformado(),
-                caixa.getFuroCaixa() // Mapeamento corrigido
+                caixa.getFuroCaixa(),
+                caixa.getOperadorAbertura() != null ? caixa.getOperadorAbertura().getId() : null,
+                caixa.getOperadorAbertura() != null ? caixa.getOperadorAbertura().getNome() : null
         );
     }
 }

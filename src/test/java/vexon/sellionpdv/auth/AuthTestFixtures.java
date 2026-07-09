@@ -11,6 +11,7 @@ public final class AuthTestFixtures {
     // SharedTestFixtures não existe neste projeto — arquitetura package-by-feature mantém
     // fixtures por pacote de domínio, então cada pacote tem suas próprias constantes.
     public static final String TOKEN_PADRAO = "token.jwt.aqui";
+    public static final String REFRESH_TOKEN_PADRAO = "refresh-token.bruto.aqui";
 
     private AuthTestFixtures() {}
 
@@ -49,6 +50,7 @@ public final class AuthTestFixtures {
     public static LoginResponseDTO umLoginResponseDTO() {
         return new LoginResponseDTO(
                 TOKEN_PADRAO,
+                REFRESH_TOKEN_PADRAO,
                 new UsuarioAuthDTO(1L, "Operador", "operador@test.com", "ROLE_ADMIN")
         );
     }

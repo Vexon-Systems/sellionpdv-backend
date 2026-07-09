@@ -18,8 +18,8 @@ public class TokenService {
     @Value("${api.security.token.secret}")
     private String secret;
 
-    @Value("${api.security.token.expiration-hours}")
-    private int expirationHours;
+    @Value("${api.security.token.expiration-minutos}")
+    private int expirationMinutos;
 
     @Value("${api.security.token.timezone}")
     private String timezone;
@@ -70,7 +70,7 @@ public class TokenService {
 
     private Instant gerarDataExpiracao() {
         return ZonedDateTime.now(ZoneId.of(timezone))
-                .plusHours(expirationHours)
+                .plusMinutes(expirationMinutos)
                 .toInstant();
     }
 }

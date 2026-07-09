@@ -63,7 +63,8 @@ class AuthControllerTest {
                             .content(objectMapper.writeValueAsString(umLoginRequestDTO())))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(jsonPath("$.token").value(TOKEN_PADRAO))
+                    .andExpect(jsonPath("$.accessToken").value(TOKEN_PADRAO))
+                    .andExpect(jsonPath("$.refreshToken").value(REFRESH_TOKEN_PADRAO))
                     .andExpect(jsonPath("$.usuario.email").value("operador@test.com"));
         }
     }

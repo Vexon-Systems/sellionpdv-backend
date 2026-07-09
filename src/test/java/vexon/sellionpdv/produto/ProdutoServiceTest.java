@@ -6,7 +6,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
-import org.mockito.MockedStatic;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -21,13 +20,10 @@ import vexon.sellionpdv.modificador.OpcaoModificador;
 import vexon.sellionpdv.produto.dto.ProdutoGrupoRequestDTO;
 import vexon.sellionpdv.produto.dto.ProdutoRequestDTO;
 import vexon.sellionpdv.produto.dto.ProdutoResponseDTO;
+import vexon.sellionpdv.common.storage.ImagemStorage;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigDecimal;
-import java.nio.file.CopyOption;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -43,6 +39,7 @@ class ProdutoServiceTest {
     @Mock private ProdutoRepository produtoRepository;
     @Mock private CategoriaRepository categoriaRepository;
     @Mock private GrupoModificadorRepository grupoRepository;
+    @Mock private ImagemStorage imagemStorage;
     @InjectMocks private ProdutoService produtoService;
 
     /**
@@ -622,11 +619,6 @@ class ProdutoServiceTest {
 
     // ─── uploadImagem ─────────────────────────────────────────────────────────────
 
-    /**
-     * Cobertura apenas dos caminhos de exceção. O happy-path toca Files.copy em
-     * pasta "uploads/" relativa ao working dir — refactor candidato para teste de
-     * integração com @TempDir.
-     */
     @Nested
     @DisplayName("uploadImagem")
     class UploadImagem {
@@ -638,6 +630,7 @@ class ProdutoServiceTest {
             when(file.isEmpty()).thenReturn(true);
 
             assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
+            verifyNoInteractions(imagemStorage);
         }
 
         @Test
@@ -649,6 +642,7 @@ class ProdutoServiceTest {
             when(file.getSize()).thenReturn(2048L);
 
             assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
+            verifyNoInteractions(imagemStorage);
         }
 
         @Test
@@ -661,71 +655,46 @@ class ProdutoServiceTest {
             when(file.getContentType()).thenReturn("application/pdf");
 
             assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
+            verifyNoInteractions(imagemStorage);
         }
 
-        /*
-         * NOTA: os dois testes abaixo usam MockedStatic<Files> porque o método
-         * referencia java.nio.file.Files diretamente (Paths.get("uploads"),
-         * Files.exists, Files.createDirectories, Files.copy). Esse acoplamento
-         * é incidental — quando o upload for refatorado para um ImagemStorage
-         * injetável, estes dois testes podem ser descartados.
-         */
-
         @Test
-        @DisplayName("Deve criar diretório, copiar arquivo e retornar URL com baseUrl + UUID + extensão")
+        @DisplayName("Deve delegar para ImagemStorage e retornar a URL com UUID + extensão corretos")
         void deve_RetornarUrl_quando_UploadComSucesso() throws IOException {
-            ReflectionTestUtils.setField(produtoService, "uploadsBaseUrl", "http://test/uploads/");
             ReflectionTestUtils.setField(produtoService, "maxSizeBytes", 5_242_880L);
 
             MultipartFile file = mock(MultipartFile.class);
-            InputStream stream = mock(InputStream.class);
+            byte[] conteudo = "conteudo-fake".getBytes();
             when(file.isEmpty()).thenReturn(false);
             when(file.getSize()).thenReturn(1024L);
             when(file.getContentType()).thenReturn("image/png");
-            when(file.getInputStream()).thenReturn(stream);
+            when(file.getBytes()).thenReturn(conteudo);
+            when(imagemStorage.salvar(eq(conteudo), anyString(), eq("image/png")))
+                    .thenReturn("https://xxxxx.supabase.co/storage/v1/object/public/produtos-imagens/uuid.png");
 
-            try (MockedStatic<Files> filesMock = mockStatic(Files.class)) {
-                filesMock.when(() -> Files.exists(any(Path.class))).thenReturn(false);
-                filesMock.when(() -> Files.createDirectories(any(Path.class)))
-                        .thenAnswer(inv -> inv.getArgument(0));
-                filesMock.when(() -> Files.copy(any(InputStream.class), any(Path.class), any(CopyOption.class)))
-                        .thenReturn(1024L);
+            String url = produtoService.uploadImagem(file);
 
-                String url = produtoService.uploadImagem(file);
+            assertEquals("https://xxxxx.supabase.co/storage/v1/object/public/produtos-imagens/uuid.png", url);
 
-                assertTrue(url.startsWith("http://test/uploads/"),
-                        () -> "URL deveria começar com baseUrl, foi: " + url);
-                assertTrue(url.endsWith(".png"),
-                        () -> "URL deveria terminar em .png, foi: " + url);
-                filesMock.verify(() -> Files.createDirectories(any(Path.class)), times(1));
-                filesMock.verify(
-                        () -> Files.copy(any(InputStream.class), any(Path.class), any(CopyOption.class)),
-                        times(1));
-            }
+            ArgumentCaptor<String> nomeArquivoCaptor = ArgumentCaptor.forClass(String.class);
+            verify(imagemStorage).salvar(eq(conteudo), nomeArquivoCaptor.capture(), eq("image/png"));
+            assertTrue(nomeArquivoCaptor.getValue().endsWith(".png"),
+                    () -> "Nome do arquivo deveria terminar em .png, foi: " + nomeArquivoCaptor.getValue());
         }
 
         @Test
-        @DisplayName("Deve traduzir IOException do Files.copy em RuntimeException com mensagem amigável")
-        void deve_LancarRuntimeException_quando_FilesCopyLancaIOException() throws IOException {
-            ReflectionTestUtils.setField(produtoService, "uploadsBaseUrl", "http://test/uploads/");
+        @DisplayName("Deve traduzir IOException de file.getBytes() em BusinessException")
+        void deve_LancarBusinessException_quando_LeituraDoArquivoFalha() throws IOException {
             ReflectionTestUtils.setField(produtoService, "maxSizeBytes", 5_242_880L);
 
             MultipartFile file = mock(MultipartFile.class);
-            InputStream stream = mock(InputStream.class);
             when(file.isEmpty()).thenReturn(false);
             when(file.getSize()).thenReturn(1024L);
             when(file.getContentType()).thenReturn("image/jpeg");
-            when(file.getInputStream()).thenReturn(stream);
+            when(file.getBytes()).thenThrow(new IOException("stream fechado"));
 
-            try (MockedStatic<Files> filesMock = mockStatic(Files.class)) {
-                filesMock.when(() -> Files.exists(any(Path.class))).thenReturn(true);
-                filesMock.when(() -> Files.copy(any(InputStream.class), any(Path.class), any(CopyOption.class)))
-                        .thenThrow(new IOException("disco cheio"));
-
-                assertThrows(RuntimeException.class, () -> produtoService.uploadImagem(file));
-
-                filesMock.verify(() -> Files.createDirectories(any(Path.class)), never());
-            }
+            assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
+            verifyNoInteractions(imagemStorage);
         }
     }
 }

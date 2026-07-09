@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import vexon.sellionpdv.auth.dto.LoginResponseDTO;
+import vexon.sellionpdv.auth.dto.LogoutRequestDTO;
+import vexon.sellionpdv.auth.dto.RefreshRequestDTO;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.security.TokenService;
 import vexon.sellionpdv.tenant.Tenant;
@@ -30,6 +32,7 @@ class AuthServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private TokenService tokenService;
+    @Mock private RefreshTokenService refreshTokenService;
     @InjectMocks private AuthService authService;
 
     private Tenant tenant;
@@ -53,16 +56,19 @@ class AuthServiceTest {
             when(usuarioRepository.findByEmailWithTenant("operador@test.com"))
                     .thenReturn(Optional.of(usuario));
             when(passwordEncoder.matches("senha123", usuario.getSenhaHash())).thenReturn(true);
-            when(tokenService.gerarToken(usuario)).thenReturn("token.jwt.aqui");
+            when(tokenService.gerarToken(usuario)).thenReturn("access.jwt.aqui");
+            when(refreshTokenService.gerar(usuario)).thenReturn("refresh-token-bruto");
 
             LoginResponseDTO resultado = authService.realizarLogin(umLoginRequestDTO());
 
-            assertEquals("token.jwt.aqui", resultado.token());
+            assertEquals("access.jwt.aqui", resultado.accessToken());
+            assertEquals("refresh-token-bruto", resultado.refreshToken());
             assertEquals(1L, resultado.usuario().id());
             assertEquals("Operador", resultado.usuario().nome());
             assertEquals("operador@test.com", resultado.usuario().email());
             assertEquals("ROLE_ADMIN", resultado.usuario().role());
             verify(tokenService).gerarToken(usuario);
+            verify(refreshTokenService).gerar(usuario);
         }
     }
 
@@ -113,6 +119,55 @@ class AuthServiceTest {
 
             verify(tokenService, never()).gerarToken(any());
             verify(usuarioRepository, never()).save(any());
+        }
+    }
+
+    // ─── renovarToken ─────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("renovarToken")
+    class RenovarToken {
+
+        @Test
+        @DisplayName("AS5 — Deve retornar novo par de tokens quando o refresh token é válido")
+        void deve_RetornarNovoLoginResponseDTO_quando_RefreshTokenValido() {
+            RefreshToken tokenAntigo = RefreshToken.builder().usuario(usuario).build();
+            when(refreshTokenService.validarERevogar("refresh-antigo")).thenReturn(tokenAntigo);
+            when(tokenService.gerarToken(usuario)).thenReturn("novo-access-token");
+            when(refreshTokenService.gerar(usuario)).thenReturn("novo-refresh-token");
+
+            LoginResponseDTO resultado = authService.renovarToken(new RefreshRequestDTO("refresh-antigo"));
+
+            assertEquals("novo-access-token", resultado.accessToken());
+            assertEquals("novo-refresh-token", resultado.refreshToken());
+            assertEquals(usuario.getEmail(), resultado.usuario().email());
+        }
+
+        @Test
+        @DisplayName("AS6 — Deve propagar BusinessException quando o refresh token é inválido, expirado ou revogado")
+        void deve_PropagarBusinessException_quando_RefreshTokenInvalido() {
+            when(refreshTokenService.validarERevogar("refresh-invalido"))
+                    .thenThrow(new BusinessException("Sessão expirada. Faça login novamente."));
+
+            assertThrows(BusinessException.class,
+                    () -> authService.renovarToken(new RefreshRequestDTO("refresh-invalido")));
+
+            verify(tokenService, never()).gerarToken(any());
+        }
+    }
+
+    // ─── logout ───────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("logout")
+    class Logout {
+
+        @Test
+        @DisplayName("AS7 — Deve delegar a revogação do refresh token para o RefreshTokenService")
+        void deve_DelegarRevogacao_quando_Logout() {
+            authService.logout(new LogoutRequestDTO("refresh-a-revogar"));
+
+            verify(refreshTokenService).revogarPorToken("refresh-a-revogar");
         }
     }
 }
