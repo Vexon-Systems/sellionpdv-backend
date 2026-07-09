@@ -15,7 +15,7 @@ import vexon.sellionpdv.usuario.Usuario;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * TokenService usa @Value para injetar secret, expirationHours e timezone.
+ * TokenService usa @Value para injetar secret, expirationMinutos e timezone.
  * ReflectionTestUtils.setField() injeta esses valores sem precisar de contexto Spring,
  * mantendo o teste leve (sem @SpringBootTest).
  */
@@ -32,7 +32,7 @@ class TokenServiceTest {
     void setUp() {
         tokenService = new TokenService();
         ReflectionTestUtils.setField(tokenService, "secret", SECRET);
-        ReflectionTestUtils.setField(tokenService, "expirationHours", 2);
+        ReflectionTestUtils.setField(tokenService, "expirationMinutos", 15);
         ReflectionTestUtils.setField(tokenService, "timezone", "America/Sao_Paulo");
 
         tenant = AuthTestFixtures.umTenant();

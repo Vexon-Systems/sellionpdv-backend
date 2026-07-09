@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import vexon.sellionpdv.auth.dto.LoginRequestDTO;
 import vexon.sellionpdv.auth.dto.LoginResponseDTO;
+import vexon.sellionpdv.auth.dto.LogoutRequestDTO;
+import vexon.sellionpdv.auth.dto.RefreshRequestDTO;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -23,5 +25,16 @@ public class AuthController {
         LoginResponseDTO response = authService.realizarLogin(request);
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponseDTO> refresh(@RequestBody @Valid RefreshRequestDTO request) {
+        return ResponseEntity.ok(authService.renovarToken(request));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestBody @Valid LogoutRequestDTO request) {
+        authService.logout(request);
+        return ResponseEntity.noContent().build();
     }
 }

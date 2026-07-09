@@ -348,3 +348,26 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 * `request.getRemoteAddr()` não reflete o IP real atrás de proxy/load balancer (ex.: Railway, Render) — precisaria ler `X-Forwarded-For` com uma lista de proxies confiáveis. Não resolvido agora porque depende de qual infra de deploy for escolhida (Tier 1, item de staging/deploy, ainda em aberto).
 * **Validado com curl em rajada, não descoberto na spec**: o `Refill.greedy` do Bucket4j repõe tokens continuamente ao longo da janela, não em janela fixa — testar com pausas manuais entre chamadas dá resultado enganoso (parece não bloquear). Só ficou claro testando em loop sem pausa.
 * Tentativas bloqueadas retornam 422 antes do rate limit entrar em ação (não 401) — comportamento herdado do `GlobalExceptionHandler`, não alterado por esta mudança.
+
+---
+
+### ADR 023: Refresh Token com Rotação
+**Data:** 09/07/2026
+
+**Contexto:** O login gerava um único JWT de 2h, sem renovação (usuário precisava logar de novo ao expirar) e sem revogação (logout era só client-side; o token continuava válido no backend até expirar sozinho). Ver spec completa em `docs/specs/configurar-refresh-token.md`.
+
+**Decisão:**
+1. Par **access token (JWT, 15min) + refresh token (opaco, 30 dias)**. O access token continua stateless (validado só por assinatura, sem consulta ao banco); o refresh token é a única coisa nova persistida.
+2. `RefreshToken` (tabela `refresh_tokens`, migration `V2` — primeira migration real desde o baseline do Flyway) guarda o **hash SHA-256** do token, nunca o valor bruto — mesma lógica de nunca guardar senha em texto puro. Sem `@TenantId`, pela mesma razão que `Usuario` não tem (ADR 001): o tenant não é conhecível antes de já ter localizado o token pelo hash.
+3. **Rotação obrigatória**: cada uso de refresh token o revoga e emite um novo. Uso do token antigo depois disso falha — sinal de token comprometido, sem precisar de infraestrutura de detecção.
+4. Novos endpoints `POST /api/auth/refresh` e `POST /api/auth/logout`, ambos `permitAll()` (não fazem sentido exigir um access token válido, já que o cenário típico de uso é justamente quando ele expirou).
+5. `LoginResponseDTO.token` renomeado para `accessToken` + novo campo `refreshToken` — **quebra o contrato da API**, exige atualização coordenada do frontend (fora deste repositório).
+
+**Opções Descartadas:**
+* Blacklist de access tokens (Descartado: reintroduziria estado/consulta ao banco em toda requisição autenticada, exatamente o que o JWT stateless evita — o TTL curto de 15min já limita a janela de exposição sem isso).
+* Refresh token também como JWT (Descartado: um valor opaco aleatório é mais simples de revogar — não precisa decodificar nada, só olhar o hash na tabela).
+
+**Trade-offs:**
+* Tabela `refresh_tokens` cresce a cada login/refresh, nunca é limpa automaticamente — aceitável no volume atual; job de limpeza fica como spec futura se necessário.
+* Rate limit do login (ADR 022) não cobre `/api/auth/refresh` — o refresh token não é adivinhável por força bruta, risco bem menor que senha; documentado, não implementado.
+* Validado ponta a ponta com curl contra o banco de dev real: login → refresh (tokens novos) → reuso do token antigo (falha, 422, confirma rotação) → logout (204) → refresh pós-logout (falha, 422).
