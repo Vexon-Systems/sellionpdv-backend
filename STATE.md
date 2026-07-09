@@ -3,7 +3,7 @@
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
-**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry.
+**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry, Supabase Storage.
 
 ## 2. O Que Já Está Pronto
 
@@ -43,6 +43,11 @@
   - Captura de erros 500 inesperados via `Sentry.captureException` no `GlobalExceptionHandler`; erros de negócio/validação (4xx) não são enviados.
   - `sentry.dsn` vazio por padrão — SDK desligado em dev/teste/CI, só ativo com `SENTRY_DSN` configurada.
   - Dependência: `sentry-spring-boot-4` (não `sentry-spring-boot-starter-jakarta` — ver ADR 020).
+- [x] **Fase 12 — Storage de Imagens (Supabase Storage):**
+  - `ProdutoService.uploadImagem()` e `UsuarioService.uploadAvatar()` (mesmo padrão, descoberto durante a implementação) migrados de disco local pra Supabase Storage.
+  - Interface `ImagemStorage` (`common/storage/`), implementação `SupabaseImagemStorage` — sem dependência nova, usa `RestClient` já disponível.
+  - `WebConfig` (só servia `/uploads/**`) removida por completo.
+  - Validado com upload real no bucket de dev `produtos-imagens`; bug de URI encontrado e corrigido nesse processo (ver ADR 021).
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -58,6 +63,7 @@
 | 018 | Algoritmo compare/remove/add no Service para sync de relacionamentos JPA |
 | 019 | Flyway com baseline para versionamento de schema; `spring-boot-starter-flyway` obrigatório no Boot 4 |
 | 020 | Sentry para captura de erro 500; chamada manual no `GlobalExceptionHandler`; `sentry-spring-boot-4` obrigatório no Boot 4 |
+| 021 | Supabase Storage via `ImagemStorage`/`SupabaseImagemStorage` (`common/storage/`), substituindo disco local em `ProdutoService` e `UsuarioService` |
 
 ## 4. Hard Delete vs. Soft Delete
 

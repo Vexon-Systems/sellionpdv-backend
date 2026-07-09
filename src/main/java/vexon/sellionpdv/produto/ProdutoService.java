@@ -12,12 +12,10 @@ import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.modificador.GrupoModificador;
 import vexon.sellionpdv.modificador.GrupoModificadorRepository;
 import vexon.sellionpdv.produto.dto.*;
+import vexon.sellionpdv.common.storage.ImagemStorage;
 
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,9 +33,7 @@ public class ProdutoService {
     private final ProdutoRepository produtoRepository;
     private final CategoriaRepository categoriaRepository;
     private final GrupoModificadorRepository grupoRepository;
-
-    @Value("${app.uploads.base-url}")
-    private String uploadsBaseUrl;
+    private final ImagemStorage imagemStorage;
 
     @Value("${app.uploads.max-size-bytes}")
     private long maxSizeBytes;
@@ -229,18 +225,9 @@ public class ProdutoService {
 
         try {
             String nomeArquivo = UUID.randomUUID() + extensao;
-
-            Path uploadPath = Paths.get("uploads");
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            Files.copy(file.getInputStream(), uploadPath.resolve(nomeArquivo), StandardCopyOption.REPLACE_EXISTING);
-
-            return uploadsBaseUrl + nomeArquivo;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao salvar a imagem. Tente novamente.");
+            return imagemStorage.salvar(file.getBytes(), nomeArquivo, contentType);
+        } catch (IOException e) {
+            throw new BusinessException("Erro ao ler o arquivo enviado.");
         }
     }
 }

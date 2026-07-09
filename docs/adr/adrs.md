@@ -305,3 +305,24 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 **Trade-offs:**
 * Qualquer novo `@ExceptionHandler` que represente um erro genuinamente inesperado (não um fluxo de negócio) precisa lembrar de chamar `Sentry.captureException` manualmente — não é automático.
 * Validado com um evento de teste manual disparado via SDK diretamente (sem passar pela API HTTP); o caminho HTTP real (`GlobalExceptionHandler` → Sentry) foi validado por inspeção de código, não por chamada end-to-end.
+
+---
+
+### ADR 021: Armazenamento de Imagens com Supabase Storage
+**Data:** 08/07/2026
+
+**Contexto:** `ProdutoService.uploadImagem()` e `UsuarioService.uploadAvatar()` salvavam arquivo em disco local (`uploads/`), servido via `WebConfig`. Sem volume persistente configurado, toda imagem desaparecia a cada deploy — o próprio Dockerfile já alertava sobre isso em comentário. Ver spec completa em `docs/specs/configurar-supabase-storage.md`.
+
+**Decisão:**
+1. Adotamos o **Supabase Storage** (bucket público `produtos-imagens`, mesmo projeto que já hospeda o banco) no lugar do disco local.
+2. Extraída uma interface `ImagemStorage` (`common/storage/`) com implementação `SupabaseImagemStorage`, injetada tanto em `ProdutoService` quanto em `UsuarioService` — os dois tinham o mesmo padrão de upload em disco, descoberto durante a implementação (não estava no escopo original da spec, estendido com aprovação).
+3. `SupabaseImagemStorage` usa `RestClient` (já disponível via `spring-boot-starter-web`, sem dependência nova) fazendo `PUT /storage/v1/object/{bucket}/{arquivo}` com a `service_role`/`secret key` do Supabase nos headers `Authorization: Bearer` e `apikey`.
+4. `WebConfig` (só existia para servir `/uploads/**`) foi removida por completo.
+
+**Opções Descartadas:**
+* Manter volume Docker persistente pro `uploads/` local (Descartado: acopla a aplicação a um único host/volume, não funciona bem com múltiplas instâncias ou plataformas PaaS sem storage persistente nativo).
+
+**Trade-offs:**
+* Bug real de URI encontrado só ao testar com credenciais reais (não pelos testes unitários, que mockam `ImagemStorage`): `RestClient.uri("{url}/...", ...)` fazia URL-encode do placeholder, quebrando o esquema `https://`. Corrigido montando a URI via `String.formatted()`. Reforça que "resolveu a dependência" e "compilou" não bastam — vale testar contra a API real antes do deploy.
+* O Supabase reformulou o sistema de chaves durante essa implementação (`service_role` → `sb_secret_...`); testado e confirmado que o novo formato funciona nos mesmos headers.
+* Bucket público: aceitável para imagens de produto/avatar (já eram públicas por design), mas esse padrão não deve ser reaproveitado sem revisão para conteúdo sensível no futuro.
