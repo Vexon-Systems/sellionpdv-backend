@@ -326,3 +326,25 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 * Bug real de URI encontrado só ao testar com credenciais reais (não pelos testes unitários, que mockam `ImagemStorage`): `RestClient.uri("{url}/...", ...)` fazia URL-encode do placeholder, quebrando o esquema `https://`. Corrigido montando a URI via `String.formatted()`. Reforça que "resolveu a dependência" e "compilou" não bastam — vale testar contra a API real antes do deploy.
 * O Supabase reformulou o sistema de chaves durante essa implementação (`service_role` → `sb_secret_...`); testado e confirmado que o novo formato funciona nos mesmos headers.
 * Bucket público: aceitável para imagens de produto/avatar (já eram públicas por design), mas esse padrão não deve ser reaproveitado sem revisão para conteúdo sensível no futuro.
+
+---
+
+### ADR 022: Rate Limit no Login com Bucket4j
+**Data:** 09/07/2026
+
+**Contexto:** `POST /api/auth/login` é `permitAll()` e aceitava chamadas ilimitadas — o Argon2id torna cada tentativa cara em CPU, mas não impede volume de tentativas de força bruta/credential stuffing. Ver spec completa em `docs/specs/configurar-rate-limit-login.md`.
+
+**Decisão:**
+1. Adotado **Bucket4j** (`bucket4j-core`, sem starter Spring, sem Redis) — algoritmo token bucket com estado em memória (`ConcurrentHashMap`), suficiente para uma instância só.
+2. `LoginRateLimitFilter` (`security/`) intercepta só `POST /api/auth/login`, registrado na cadeia antes do `SecurityFilter`. Limite configurável via `application.properties` (`security.rate-limit.login.*`), default 5 tentativas/minuto por IP — sem variável de ambiente obrigatória.
+3. Resposta de bloqueio usa o mesmo padrão `ProblemDetail` do `GlobalExceptionHandler`, mas construída manualmente no filtro (roda antes do Spring MVC, não passa pelo `@RestControllerAdvice`).
+
+**Opções Descartadas:**
+* Redis/estado compartilhado (Descartado: complexidade desproporcional para uma instância só; documentado como próximo passo se/quando escalar horizontalmente).
+* Segunda `SecurityFilterChain` restrita por URL (Descartado: um `if` de path+método dentro do filtro é mais simples de ler que duas cadeias de segurança paralelas).
+
+**Trade-offs:**
+* Estado em memória reseta a cada deploy/restart e **não escala pra múltiplas instâncias** (cada uma teria seu próprio contador) — aceitável agora, revisitar se/quando houver mais de uma instância rodando.
+* `request.getRemoteAddr()` não reflete o IP real atrás de proxy/load balancer (ex.: Railway, Render) — precisaria ler `X-Forwarded-For` com uma lista de proxies confiáveis. Não resolvido agora porque depende de qual infra de deploy for escolhida (Tier 1, item de staging/deploy, ainda em aberto).
+* **Validado com curl em rajada, não descoberto na spec**: o `Refill.greedy` do Bucket4j repõe tokens continuamente ao longo da janela, não em janela fixa — testar com pausas manuais entre chamadas dá resultado enganoso (parece não bloquear). Só ficou claro testando em loop sem pausa.
+* Tentativas bloqueadas retornam 422 antes do rate limit entrar em ação (não 401) — comportamento herdado do `GlobalExceptionHandler`, não alterado por esta mudança.

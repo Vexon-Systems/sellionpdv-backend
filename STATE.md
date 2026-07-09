@@ -3,7 +3,7 @@
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
-**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry, Supabase Storage.
+**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry, Supabase Storage, Bucket4j.
 
 ## 2. O Que Já Está Pronto
 
@@ -48,6 +48,11 @@
   - Interface `ImagemStorage` (`common/storage/`), implementação `SupabaseImagemStorage` — sem dependência nova, usa `RestClient` já disponível.
   - `WebConfig` (só servia `/uploads/**`) removida por completo.
   - Validado com upload real no bucket de dev `produtos-imagens`; bug de URI encontrado e corrigido nesse processo (ver ADR 021).
+- [x] **Fase 13 — Rate Limit no Login (Bucket4j):**
+  - `LoginRateLimitFilter` (`security/`) limita `POST /api/auth/login` a 5 tentativas/minuto por IP, em memória (sem Redis).
+  - Configurável via `security.rate-limit.login.*`, sem variável de ambiente obrigatória.
+  - Validado com curl em rajada: bloqueia na 6ª tentativa (429), inclusive com credenciais válidas; recupera gradualmente (ver ADR 022).
+  - Limitação conhecida documentada, não resolvida: estado em memória não escala pra múltiplas instâncias; `RemoteAddr` não reflete IP real atrás de proxy.
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -64,6 +69,7 @@
 | 019 | Flyway com baseline para versionamento de schema; `spring-boot-starter-flyway` obrigatório no Boot 4 |
 | 020 | Sentry para captura de erro 500; chamada manual no `GlobalExceptionHandler`; `sentry-spring-boot-4` obrigatório no Boot 4 |
 | 021 | Supabase Storage via `ImagemStorage`/`SupabaseImagemStorage` (`common/storage/`), substituindo disco local em `ProdutoService` e `UsuarioService` |
+| 022 | Rate limit no login via Bucket4j (token bucket em memória), 5 tentativas/minuto por IP |
 
 ## 4. Hard Delete vs. Soft Delete
 

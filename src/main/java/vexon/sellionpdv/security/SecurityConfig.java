@@ -22,6 +22,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final SecurityFilter securityFilter;
+    private final LoginRateLimitFilter loginRateLimitFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -47,6 +48,7 @@ public class SecurityConfig {
 
                     req.anyRequest().authenticated();
                 })
+                .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
