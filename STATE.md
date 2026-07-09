@@ -3,7 +3,7 @@
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
-**Stack:** Java 21, Spring Boot 3.x, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI 3.x.
+**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry.
 
 ## 2. O Que Já Está Pronto
 
@@ -35,6 +35,14 @@
   - `LancamentoFinanceiro` entity: `id`, `tenant_id`, `descricao`, `valor (BigDecimal)`, `categoria (CategoriaLancamento enum)`, `data_referencia (LocalDate)`, `criado_em`.
   - Hard delete (sem soft delete — dados operacionais sem necessidade de histórico retroativo).
   - `RelatorioService.gerarDreGerencial()` agora agrega lançamentos do período para calcular `totalDespesasOperacionais`, `lucroLiquido` e `margemLiquidaPercentual`.
+- [x] **Fase 10 — Versionamento de Schema (Flyway):**
+  - Schema do banco agora controlado por migrations em `src/main/resources/db/migration/`, em vez de SQL manual.
+  - `V1__baseline_schema.sql` baselineado no banco de dev existente; validado do zero num banco descartável.
+  - Dependência: `spring-boot-starter-flyway` (não `flyway-core` isolado — ver ADR 019).
+- [x] **Fase 11 — Observabilidade (Sentry):**
+  - Captura de erros 500 inesperados via `Sentry.captureException` no `GlobalExceptionHandler`; erros de negócio/validação (4xx) não são enviados.
+  - `sentry.dsn` vazio por padrão — SDK desligado em dev/teste/CI, só ativo com `SENTRY_DSN` configurada.
+  - Dependência: `sentry-spring-boot-4` (não `sentry-spring-boot-starter-jakarta` — ver ADR 020).
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -48,6 +56,8 @@
 | 016 | Soft delete via `ativo = false` + `@SQLRestriction` para catálogo |
 | 017 | Payload profundo no GET de produtos para cache em RAM no frontend |
 | 018 | Algoritmo compare/remove/add no Service para sync de relacionamentos JPA |
+| 019 | Flyway com baseline para versionamento de schema; `spring-boot-starter-flyway` obrigatório no Boot 4 |
+| 020 | Sentry para captura de erro 500; chamada manual no `GlobalExceptionHandler`; `sentry-spring-boot-4` obrigatório no Boot 4 |
 
 ## 4. Hard Delete vs. Soft Delete
 

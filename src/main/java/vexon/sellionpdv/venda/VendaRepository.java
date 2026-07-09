@@ -80,12 +80,14 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
             countQuery = "SELECT count(v) FROM Venda v WHERE (:status IS NULL OR v.status = :status)")
     Page<Venda> buscarRelatorioVendas(@Param("status") StatusVenda status, Pageable pageable);
 
-    // Busca os detalhes profundos de uma única venda (Recibo)
+    // Busca os detalhes profundos de uma única venda (Recibo).
+    // Não fazer JOIN FETCH em i.modificadores + v.itens juntos: Hibernate lança
+    // MultipleBagFetchException para duas coleções List na mesma query.
+    // Modificadores são carregados lazy dentro do @Transactional do service.
     @Query("SELECT DISTINCT v FROM Venda v " +
             "JOIN FETCH v.tenant " +
             "JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
             "LEFT JOIN FETCH v.itens i LEFT JOIN FETCH i.produto " +
-            "LEFT JOIN FETCH i.modificadores m LEFT JOIN FETCH m.opcao " +
             "WHERE v.id = :id")
     Optional<Venda> buscarReciboComDetalhes(@Param("id") Long id);
 

@@ -263,3 +263,45 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 2. Adotamos o **Motor de Sincronização Inteligente (Merge)** no `ProdutoService`.
 3. O código agora compara ativamente o que veio no JSON contra o que está no Banco de Dados e decide granularmente se deve: Remover (o que sumiu do JSON), Atualizar (o que já existia) ou Adicionar (o que é novo).
 4. Essa abordagem evita erros 500 silenciosos do JPA e otimiza a quantidade de queries geradas no banco.
+
+---
+
+### ADR 019: Versionamento de Schema com Flyway (Baseline)
+**Data:** 08/07/2026
+
+**Contexto:** Até aqui, `spring.jpa.hibernate.ddl-auto=none` e todas as mudanças de schema eram aplicadas manualmente via SQL avulso no Supabase (ver ADR 016). Sem registro automático de qual versão do schema está em cada ambiente, um `ALTER TABLE` esquecido em produção quebra a aplicação silenciosamente. Ver spec completa em `docs/specs/configurar-flyway.md`.
+
+**Decisão:**
+1. Adotamos o **Flyway** para versionar o schema, com os arquivos de migration em `src/main/resources/db/migration/`.
+2. Como o banco de dev/prod já existia com tabelas criadas manualmente, usamos a estratégia de **baseline**: `V1__baseline_schema.sql` contém o DDL completo extraído do banco real (via `pg_dump`), e `spring.flyway.baseline-on-migrate=true` + `spring.flyway.baseline-version=1` fazem o Flyway reconhecer esse schema como ponto de partida sem tentar recriá-lo. Em um banco novo e vazio (ex.: futuro staging), o mesmo `V1` cria o schema do zero.
+3. **Dependência correta no Spring Boot 4:** `org.springframework.boot:spring-boot-starter-flyway` (não `flyway-core` isolado). O Boot 4 modularizou a autoconfiguração por feature (assim como fez com Thymeleaf); sem o starter dedicado, o Flyway fica no classpath mas nunca é acionado — nenhum log, nenhum erro, apenas silêncio. Descoberto via [flyway/flyway#4165](https://github.com/flyway/flyway/issues/4165).
+4. Nos testes (H2 + `create-drop`), o Flyway é desabilitado (`spring.flyway.enabled=false`) — não faz sentido versionar schema num banco recriado do zero a cada suíte.
+
+**Opções Descartadas:**
+* Liquibase (Descartado: Flyway com migrations SQL puras é mais simples de ler/manter para quem não é backend — XML/YAML do Liquibase adiciona uma camada de abstração desnecessária).
+* Continuar com ALTER TABLE manual (Descartado: é exatamente o risco que motivou essa mudança).
+
+**Trade-offs:**
+* A partir de agora, **nenhuma mudança de schema pode ser feita manualmente no Supabase** — toda alteração vira um novo arquivo `V{n}__descricao.sql`, versionado e revisado como qualquer código.
+* O baseline não valida retroativamente se o `V1` bate 100% com o schema real; isso foi validado manualmente uma vez (criação do zero num banco descartável + baseline em dev), mas divergências futuras só aparecerão se alguém tentar recriar o banco do zero.
+
+---
+
+### ADR 020: Observabilidade de Erros com Sentry
+**Data:** 08/07/2026
+
+**Contexto:** Não existia nenhuma ferramenta de observabilidade — um erro em produção só era percebido quando o cliente reclamava. Ver spec completa em `docs/specs/configurar-sentry.md`.
+
+**Decisão:**
+1. Adotamos o **Sentry** para captura automática de exceções, com alerta quando algo novo quebra.
+2. Como o `GlobalExceptionHandler` (`@RestControllerAdvice`) já intercepta todas as exceções antes de qualquer mecanismo automático do Spring, a integração automática do Sentry não dispara sozinha — foi necessário adicionar `Sentry.captureException(ex)` explicitamente, e **só** dentro do handler de erro 500 genuinamente inesperado (`handleGeneric`). Os outros 5 handlers (404, 422, 400, header ausente, JSON malformado) não chamam o Sentry — são fluxo normal da aplicação, não bugs, e mandar isso pro Sentry geraria ruído.
+3. **Dependência correta no Spring Boot 4:** `io.sentry:sentry-spring-boot-4` (não `sentry-spring-boot-starter-jakarta`, que é a variante para Boot 3). A `-jakarta` resolve sem erro no Maven, mas falha no boot com `"Incompatible Spring Boot Version detected!"` — o mesmo padrão de armadilha do Flyway (ADR 019): dependências de terceiros ainda estão migrando suporte pro Boot 4, e "resolveu no Maven" não significa "funciona em runtime".
+4. `sentry.dsn=${SENTRY_DSN:}` fica vazia por padrão — o SDK se desliga sozinho sem DSN configurada, então dev/teste/CI funcionam sem nenhuma configuração extra.
+
+**Opções Descartadas:**
+* Deixar a integração automática do Sentry sem chamada explícita (Descartado: não funcionaria, porque o `GlobalExceptionHandler` já "trata" toda exceção do ponto de vista do Spring).
+* Mandar todos os erros (incluindo 4xx) pro Sentry (Descartado: geraria ruído e faria a equipe ignorar alertas reais).
+
+**Trade-offs:**
+* Qualquer novo `@ExceptionHandler` que represente um erro genuinamente inesperado (não um fluxo de negócio) precisa lembrar de chamar `Sentry.captureException` manualmente — não é automático.
+* Validado com um evento de teste manual disparado via SDK diretamente (sem passar pela API HTTP); o caminho HTTP real (`GlobalExceptionHandler` → Sentry) foi validado por inspeção de código, não por chamada end-to-end.
