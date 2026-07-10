@@ -394,3 +394,25 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 * **Achado real, não hipotético**: o primeiro deploy de staging falhou com `relation "usuarios" does not exist` — não por bug de configuração, mas porque a branch `dev` estava 8 commits atrás da branch de feature onde todo o trabalho de Flyway/Sentry/Storage/rate-limit/refresh-token tinha sido feito. `dev` não tinha nenhum Flyway configurado ainda. Resolvido com merge da feature branch pra `dev` antes do deploy funcionar — lição registrada na spec para a próxima vez que um ambiente novo for criado apontando pra uma branch de longa duração.
 * Dois serviços Free no Render compartilham a cota de 750h/mês por workspace; staging "dorme" após 15min sem tráfego (~1min de cold start ao acordar) — aceitável para staging, mas se produção também estiver em Free, o mesmo comportamento já afeta clientes reais (decisão de plano de hospedagem, fora do escopo desta ADR).
 * Validado ponta a ponta: Flyway aplicou `V1` e `V2` do zero no banco de staging vazio; `GET /swagger-ui.html` responde 200; `POST /api/auth/login` retorna `accessToken`+`refreshToken` corretamente contra o serviço publicado.
+* **Atualização pós-validação (ver ADR 025)**: a correção do Dockerfile descrita no item 3 acima não chegou de fato em `dev`/`main` nos primeiros commits — só existia em `feat/refatoracao-comercial`. O staging "funcionou" mesmo assim porque o serviço no Render, na prática, estava configurado pra rastrear `main` (não `dev`, como o item 1 desta ADR presumia), e ambos ficaram sem a correção por um tempo sem que ninguém notasse (profile `prod` e `staging` tinham exatamente o mesmo comportamento observável). Só foi descoberto e corrigido durante a spec de backup (ADR 025).
+
+---
+
+### ADR 025: Backup Automático + Runbook de Restauração
+**Data:** 10/07/2026
+
+**Contexto:** O plano Free do Supabase não faz nenhum backup automático (só a partir do Pro, ~$25/mês). Decidiu-se continuar no Free e resolver com automação própria em vez de upgrade. Ver spec completa em `docs/specs/configurar-backup.md`.
+
+**Decisão:**
+1. `.github/workflows/backup-postgres.yml`: workflow agendado (diário, 03h Brasília) que roda `pg_dump` (dentro de um container `postgres:17-alpine`, pra garantir versão idêntica à do servidor) contra produção, sobe o dump pro bucket privado `backups-db` **no projeto Supabase de staging** (não no de produção — sobrevive a um desastre que atinja o projeto de produção inteiro), e apaga backups com mais de 14 dias.
+2. `docs/RUNBOOK.md`: passo a passo de restauração escrito pra quem não é backend seguir num incidente real, com seção de "quando usar" / "quando não usar" e um ponto de confirmação explícito antes do comando destrutivo.
+3. Segredos do GitHub Actions (`BACKUP_DB_URL`, `BACKUP_STORAGE_URL`, `BACKUP_STORAGE_SERVICE_ROLE_KEY`) — mesma disciplina de nunca commitar, mesmo nível de confiança que `DB_PASSWORD`/`JWT_SECRET` já tinham.
+
+**Opções Descartadas:**
+* Upgrade pro Supabase Pro (Descartado por decisão de custo do usuário — ficaria mais simples, mas o Free com automação própria foi a escolha).
+* Backup manual (rodar `pg_dump` na mão periodicamente) (Descartado: tarefa recorrente manual tende a ser esquecida; a automação via `cron` do GitHub Actions não depende de ninguém lembrar).
+
+**Trade-offs:**
+* Bug real na validação: a API de listagem do Supabase Storage exige o campo `prefix` no corpo da requisição (mesmo vazio) — o workflow original só mandava `limit`/`sortBy` e falhava com HTTP 400 na etapa de limpeza de backups antigos. Corrigido, e adicionada exibição do corpo de erro em falhas futuras (o `curl -sf` original escondia a mensagem real).
+* **Achado maior que o bug em si**: a validação desta spec expôs que várias specs anteriores (Flyway, Sentry, Storage, staging) tinham sido commitadas **incompletas** — só o arquivo `.md` da spec ia no commit, faltando os arquivos de implementação (código, `Dockerfile`, properties). Isso deixou a branch `dev` seriamente atrasada em relação a `main`/`feat/refatoracao-comercial` sem que ninguém percebesse, e escondeu por semanas um bug real no `Dockerfile` (profile `prod` fixo, ver ADR 024) porque não havia diferença de comportamento observável entre os profiles `prod` e `staging`. **Prática adotada daqui pra frente**: depois de qualquer commit de implementação, conferir com `git show --stat <commit>` que todos os arquivos tocados (não só a spec) foram incluídos, e confirmar qual branch cada serviço de deploy realmente rastreia antes de assumir com base na spec original.
+* RPO de até 24h (aceitável no estágio atual); retenção de 14 dias mantém o uso do Storage free dentro do limite de 1GB.

@@ -1,5 +1,5 @@
 # Estado Atual do Sistema: Sellion PDV (Backend)
-**Última Atualização:** 09/07/2026 por Eduardo Gonçalves (Tech Lead)
+**Última Atualização:** 10/07/2026 por Eduardo Gonçalves (Tech Lead)
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
@@ -62,6 +62,12 @@
   - Segundo Web Service no Render (`sellionpdv-backend-1`, branch `dev`, auto-deploy) + segundo projeto Supabase (`sellionpdv-staging`), isolado de dev/produção.
   - `Dockerfile`: profile não é mais fixo na imagem (`SPRING_PROFILES_ACTIVE` via variável de ambiente); mesma imagem serve produção e staging.
   - Validado no ar: `https://sellionpdv-backend-1.onrender.com` — Flyway criou o schema do zero (V1+V2), `/swagger-ui.html` responde, login retorna `accessToken`/`refreshToken` (ver ADR 024).
+  - **Nota**: staging na verdade estava rastreando `main` até essa spec ser corrigida (não `dev`, como planejado originalmente) — corrigido durante a validação da Fase 16.
+- [x] **Fase 16 — Backup Automático + Runbook (GitHub Actions + Supabase Storage):**
+  - `.github/workflows/backup-postgres.yml`: dump diário (03h Brasília) via `pg_dump` em container `postgres:17-alpine`, upload pro bucket privado `backups-db` no projeto de staging (não no de produção), retenção de 14 dias.
+  - `docs/RUNBOOK.md`: passo a passo de restauração escrito pra quem não é backend.
+  - Validado: workflow disparado manualmente, dump gerado e subiu com sucesso; bug real corrigido na etapa de limpeza (API do Supabase Storage exige campo `prefix` no corpo, mesmo vazio).
+  - **Achado maior durante a validação**: várias specs anteriores (Flyway, Sentry, Storage, staging) tinham sido commitadas incompletas — só a spec `.md`, sem os arquivos de implementação — deixando `dev` seriamente atrasada e escondendo um bug real no Dockerfile por semanas (ver ADR 024 e 025). Prática adotada: sempre conferir `git show --stat <commit>` inclui todos os arquivos tocados antes de considerar uma spec commitada.
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -81,6 +87,7 @@
 | 022 | Rate limit no login via Bucket4j (token bucket em memória), 5 tentativas/minuto por IP |
 | 023 | Refresh token com rotação (`refresh_tokens`, hash SHA-256); access token reduzido para 15min |
 | 024 | Staging no Render (branch `dev`) + Supabase isolado; profile via `SPRING_PROFILES_ACTIVE`, não fixo na imagem Docker |
+| 025 | Backup automático via GitHub Actions + Supabase Storage (bucket no projeto de staging); RUNBOOK.md pra restauração |
 
 ## 4. Hard Delete vs. Soft Delete
 
