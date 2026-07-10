@@ -263,3 +263,111 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 2. Adotamos o **Motor de Sincronização Inteligente (Merge)** no `ProdutoService`.
 3. O código agora compara ativamente o que veio no JSON contra o que está no Banco de Dados e decide granularmente se deve: Remover (o que sumiu do JSON), Atualizar (o que já existia) ou Adicionar (o que é novo).
 4. Essa abordagem evita erros 500 silenciosos do JPA e otimiza a quantidade de queries geradas no banco.
+
+---
+
+### ADR 019: Versionamento de Schema com Flyway (Baseline)
+**Data:** 08/07/2026
+
+**Contexto:** Até aqui, `spring.jpa.hibernate.ddl-auto=none` e todas as mudanças de schema eram aplicadas manualmente via SQL avulso no Supabase (ver ADR 016). Sem registro automático de qual versão do schema está em cada ambiente, um `ALTER TABLE` esquecido em produção quebra a aplicação silenciosamente. Ver spec completa em `docs/specs/configurar-flyway.md`.
+
+**Decisão:**
+1. Adotamos o **Flyway** para versionar o schema, com os arquivos de migration em `src/main/resources/db/migration/`.
+2. Como o banco de dev/prod já existia com tabelas criadas manualmente, usamos a estratégia de **baseline**: `V1__baseline_schema.sql` contém o DDL completo extraído do banco real (via `pg_dump`), e `spring.flyway.baseline-on-migrate=true` + `spring.flyway.baseline-version=1` fazem o Flyway reconhecer esse schema como ponto de partida sem tentar recriá-lo. Em um banco novo e vazio (ex.: futuro staging), o mesmo `V1` cria o schema do zero.
+3. **Dependência correta no Spring Boot 4:** `org.springframework.boot:spring-boot-starter-flyway` (não `flyway-core` isolado). O Boot 4 modularizou a autoconfiguração por feature (assim como fez com Thymeleaf); sem o starter dedicado, o Flyway fica no classpath mas nunca é acionado — nenhum log, nenhum erro, apenas silêncio. Descoberto via [flyway/flyway#4165](https://github.com/flyway/flyway/issues/4165).
+4. Nos testes (H2 + `create-drop`), o Flyway é desabilitado (`spring.flyway.enabled=false`) — não faz sentido versionar schema num banco recriado do zero a cada suíte.
+
+**Opções Descartadas:**
+* Liquibase (Descartado: Flyway com migrations SQL puras é mais simples de ler/manter para quem não é backend — XML/YAML do Liquibase adiciona uma camada de abstração desnecessária).
+* Continuar com ALTER TABLE manual (Descartado: é exatamente o risco que motivou essa mudança).
+
+**Trade-offs:**
+* A partir de agora, **nenhuma mudança de schema pode ser feita manualmente no Supabase** — toda alteração vira um novo arquivo `V{n}__descricao.sql`, versionado e revisado como qualquer código.
+* O baseline não valida retroativamente se o `V1` bate 100% com o schema real; isso foi validado manualmente uma vez (criação do zero num banco descartável + baseline em dev), mas divergências futuras só aparecerão se alguém tentar recriar o banco do zero.
+
+---
+
+### ADR 020: Observabilidade de Erros com Sentry
+**Data:** 08/07/2026
+
+**Contexto:** Não existia nenhuma ferramenta de observabilidade — um erro em produção só era percebido quando o cliente reclamava. Ver spec completa em `docs/specs/configurar-sentry.md`.
+
+**Decisão:**
+1. Adotamos o **Sentry** para captura automática de exceções, com alerta quando algo novo quebra.
+2. Como o `GlobalExceptionHandler` (`@RestControllerAdvice`) já intercepta todas as exceções antes de qualquer mecanismo automático do Spring, a integração automática do Sentry não dispara sozinha — foi necessário adicionar `Sentry.captureException(ex)` explicitamente, e **só** dentro do handler de erro 500 genuinamente inesperado (`handleGeneric`). Os outros 5 handlers (404, 422, 400, header ausente, JSON malformado) não chamam o Sentry — são fluxo normal da aplicação, não bugs, e mandar isso pro Sentry geraria ruído.
+3. **Dependência correta no Spring Boot 4:** `io.sentry:sentry-spring-boot-4` (não `sentry-spring-boot-starter-jakarta`, que é a variante para Boot 3). A `-jakarta` resolve sem erro no Maven, mas falha no boot com `"Incompatible Spring Boot Version detected!"` — o mesmo padrão de armadilha do Flyway (ADR 019): dependências de terceiros ainda estão migrando suporte pro Boot 4, e "resolveu no Maven" não significa "funciona em runtime".
+4. `sentry.dsn=${SENTRY_DSN:}` fica vazia por padrão — o SDK se desliga sozinho sem DSN configurada, então dev/teste/CI funcionam sem nenhuma configuração extra.
+
+**Opções Descartadas:**
+* Deixar a integração automática do Sentry sem chamada explícita (Descartado: não funcionaria, porque o `GlobalExceptionHandler` já "trata" toda exceção do ponto de vista do Spring).
+* Mandar todos os erros (incluindo 4xx) pro Sentry (Descartado: geraria ruído e faria a equipe ignorar alertas reais).
+
+**Trade-offs:**
+* Qualquer novo `@ExceptionHandler` que represente um erro genuinamente inesperado (não um fluxo de negócio) precisa lembrar de chamar `Sentry.captureException` manualmente — não é automático.
+* Validado com um evento de teste manual disparado via SDK diretamente (sem passar pela API HTTP); o caminho HTTP real (`GlobalExceptionHandler` → Sentry) foi validado por inspeção de código, não por chamada end-to-end.
+
+---
+
+### ADR 021: Armazenamento de Imagens com Supabase Storage
+**Data:** 08/07/2026
+
+**Contexto:** `ProdutoService.uploadImagem()` e `UsuarioService.uploadAvatar()` salvavam arquivo em disco local (`uploads/`), servido via `WebConfig`. Sem volume persistente configurado, toda imagem desaparecia a cada deploy — o próprio Dockerfile já alertava sobre isso em comentário. Ver spec completa em `docs/specs/configurar-supabase-storage.md`.
+
+**Decisão:**
+1. Adotamos o **Supabase Storage** (bucket público `produtos-imagens`, mesmo projeto que já hospeda o banco) no lugar do disco local.
+2. Extraída uma interface `ImagemStorage` (`common/storage/`) com implementação `SupabaseImagemStorage`, injetada tanto em `ProdutoService` quanto em `UsuarioService` — os dois tinham o mesmo padrão de upload em disco, descoberto durante a implementação (não estava no escopo original da spec, estendido com aprovação).
+3. `SupabaseImagemStorage` usa `RestClient` (já disponível via `spring-boot-starter-web`, sem dependência nova) fazendo `PUT /storage/v1/object/{bucket}/{arquivo}` com a `service_role`/`secret key` do Supabase nos headers `Authorization: Bearer` e `apikey`.
+4. `WebConfig` (só existia para servir `/uploads/**`) foi removida por completo.
+
+**Opções Descartadas:**
+* Manter volume Docker persistente pro `uploads/` local (Descartado: acopla a aplicação a um único host/volume, não funciona bem com múltiplas instâncias ou plataformas PaaS sem storage persistente nativo).
+
+**Trade-offs:**
+* Bug real de URI encontrado só ao testar com credenciais reais (não pelos testes unitários, que mockam `ImagemStorage`): `RestClient.uri("{url}/...", ...)` fazia URL-encode do placeholder, quebrando o esquema `https://`. Corrigido montando a URI via `String.formatted()`. Reforça que "resolveu a dependência" e "compilou" não bastam — vale testar contra a API real antes do deploy.
+* O Supabase reformulou o sistema de chaves durante essa implementação (`service_role` → `sb_secret_...`); testado e confirmado que o novo formato funciona nos mesmos headers.
+* Bucket público: aceitável para imagens de produto/avatar (já eram públicas por design), mas esse padrão não deve ser reaproveitado sem revisão para conteúdo sensível no futuro.
+
+---
+
+### ADR 022: Rate Limit no Login com Bucket4j
+**Data:** 09/07/2026
+
+**Contexto:** `POST /api/auth/login` é `permitAll()` e aceitava chamadas ilimitadas — o Argon2id torna cada tentativa cara em CPU, mas não impede volume de tentativas de força bruta/credential stuffing. Ver spec completa em `docs/specs/configurar-rate-limit-login.md`.
+
+**Decisão:**
+1. Adotado **Bucket4j** (`bucket4j-core`, sem starter Spring, sem Redis) — algoritmo token bucket com estado em memória (`ConcurrentHashMap`), suficiente para uma instância só.
+2. `LoginRateLimitFilter` (`security/`) intercepta só `POST /api/auth/login`, registrado na cadeia antes do `SecurityFilter`. Limite configurável via `application.properties` (`security.rate-limit.login.*`), default 5 tentativas/minuto por IP — sem variável de ambiente obrigatória.
+3. Resposta de bloqueio usa o mesmo padrão `ProblemDetail` do `GlobalExceptionHandler`, mas construída manualmente no filtro (roda antes do Spring MVC, não passa pelo `@RestControllerAdvice`).
+
+**Opções Descartadas:**
+* Redis/estado compartilhado (Descartado: complexidade desproporcional para uma instância só; documentado como próximo passo se/quando escalar horizontalmente).
+* Segunda `SecurityFilterChain` restrita por URL (Descartado: um `if` de path+método dentro do filtro é mais simples de ler que duas cadeias de segurança paralelas).
+
+**Trade-offs:**
+* Estado em memória reseta a cada deploy/restart e **não escala pra múltiplas instâncias** (cada uma teria seu próprio contador) — aceitável agora, revisitar se/quando houver mais de uma instância rodando.
+* `request.getRemoteAddr()` não reflete o IP real atrás de proxy/load balancer (ex.: Railway, Render) — precisaria ler `X-Forwarded-For` com uma lista de proxies confiáveis. Não resolvido agora porque depende de qual infra de deploy for escolhida (Tier 1, item de staging/deploy, ainda em aberto).
+* **Validado com curl em rajada, não descoberto na spec**: o `Refill.greedy` do Bucket4j repõe tokens continuamente ao longo da janela, não em janela fixa — testar com pausas manuais entre chamadas dá resultado enganoso (parece não bloquear). Só ficou claro testando em loop sem pausa.
+* Tentativas bloqueadas retornam 422 antes do rate limit entrar em ação (não 401) — comportamento herdado do `GlobalExceptionHandler`, não alterado por esta mudança.
+
+---
+
+### ADR 023: Refresh Token com Rotação
+**Data:** 09/07/2026
+
+**Contexto:** O login gerava um único JWT de 2h, sem renovação (usuário precisava logar de novo ao expirar) e sem revogação (logout era só client-side; o token continuava válido no backend até expirar sozinho). Ver spec completa em `docs/specs/configurar-refresh-token.md`.
+
+**Decisão:**
+1. Par **access token (JWT, 15min) + refresh token (opaco, 30 dias)**. O access token continua stateless (validado só por assinatura, sem consulta ao banco); o refresh token é a única coisa nova persistida.
+2. `RefreshToken` (tabela `refresh_tokens`, migration `V2` — primeira migration real desde o baseline do Flyway) guarda o **hash SHA-256** do token, nunca o valor bruto — mesma lógica de nunca guardar senha em texto puro. Sem `@TenantId`, pela mesma razão que `Usuario` não tem (ADR 001): o tenant não é conhecível antes de já ter localizado o token pelo hash.
+3. **Rotação obrigatória**: cada uso de refresh token o revoga e emite um novo. Uso do token antigo depois disso falha — sinal de token comprometido, sem precisar de infraestrutura de detecção.
+4. Novos endpoints `POST /api/auth/refresh` e `POST /api/auth/logout`, ambos `permitAll()` (não fazem sentido exigir um access token válido, já que o cenário típico de uso é justamente quando ele expirou).
+5. `LoginResponseDTO.token` renomeado para `accessToken` + novo campo `refreshToken` — **quebra o contrato da API**, exige atualização coordenada do frontend (fora deste repositório).
+
+**Opções Descartadas:**
+* Blacklist de access tokens (Descartado: reintroduziria estado/consulta ao banco em toda requisição autenticada, exatamente o que o JWT stateless evita — o TTL curto de 15min já limita a janela de exposição sem isso).
+* Refresh token também como JWT (Descartado: um valor opaco aleatório é mais simples de revogar — não precisa decodificar nada, só olhar o hash na tabela).
+
+**Trade-offs:**
+* Tabela `refresh_tokens` cresce a cada login/refresh, nunca é limpa automaticamente — aceitável no volume atual; job de limpeza fica como spec futura se necessário.
+* Rate limit do login (ADR 022) não cobre `/api/auth/refresh` — o refresh token não é adivinhável por força bruta, risco bem menor que senha; documentado, não implementado.
+* Validado ponta a ponta com curl contra o banco de dev real: login → refresh (tokens novos) → reuso do token antigo (falha, 422, confirma rotação) → logout (204) → refresh pós-logout (falha, 422).

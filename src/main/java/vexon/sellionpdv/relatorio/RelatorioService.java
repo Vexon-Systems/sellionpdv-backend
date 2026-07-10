@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiro;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiroRepository;
 import vexon.sellionpdv.relatorio.dto.*;
@@ -53,7 +54,7 @@ public class RelatorioService {
     @Transactional(readOnly = true)
     public ReciboVendaResponseDTO obterRecibo(Long id) {
         Venda venda = vendaRepository.buscarReciboComDetalhes(id)
-                .orElseThrow(() -> new RuntimeException("Venda não encontrada ou não pertence à franquia."));
+                .orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada ou não pertence à franquia."));
 
         List<ReciboItemDTO> itensDTO = venda.getItens().stream().map(item -> {
             // Mapeamento dos modificadores (se existirem)

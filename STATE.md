@@ -3,7 +3,7 @@
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
-**Stack:** Java 21, Spring Boot 3.x, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI 3.x.
+**Stack:** Java 21, Spring Boot 4.0.5, Hibernate 6, PostgreSQL (Supabase), JWT (Auth0 `java-jwt`), Argon2id, SpringDoc OpenAPI, Flyway, Sentry, Supabase Storage, Bucket4j.
 
 ## 2. O Que Já Está Pronto
 
@@ -35,6 +35,29 @@
   - `LancamentoFinanceiro` entity: `id`, `tenant_id`, `descricao`, `valor (BigDecimal)`, `categoria (CategoriaLancamento enum)`, `data_referencia (LocalDate)`, `criado_em`.
   - Hard delete (sem soft delete — dados operacionais sem necessidade de histórico retroativo).
   - `RelatorioService.gerarDreGerencial()` agora agrega lançamentos do período para calcular `totalDespesasOperacionais`, `lucroLiquido` e `margemLiquidaPercentual`.
+- [x] **Fase 10 — Versionamento de Schema (Flyway):**
+  - Schema do banco agora controlado por migrations em `src/main/resources/db/migration/`, em vez de SQL manual.
+  - `V1__baseline_schema.sql` baselineado no banco de dev existente; validado do zero num banco descartável.
+  - Dependência: `spring-boot-starter-flyway` (não `flyway-core` isolado — ver ADR 019).
+- [x] **Fase 11 — Observabilidade (Sentry):**
+  - Captura de erros 500 inesperados via `Sentry.captureException` no `GlobalExceptionHandler`; erros de negócio/validação (4xx) não são enviados.
+  - `sentry.dsn` vazio por padrão — SDK desligado em dev/teste/CI, só ativo com `SENTRY_DSN` configurada.
+  - Dependência: `sentry-spring-boot-4` (não `sentry-spring-boot-starter-jakarta` — ver ADR 020).
+- [x] **Fase 12 — Storage de Imagens (Supabase Storage):**
+  - `ProdutoService.uploadImagem()` e `UsuarioService.uploadAvatar()` (mesmo padrão, descoberto durante a implementação) migrados de disco local pra Supabase Storage.
+  - Interface `ImagemStorage` (`common/storage/`), implementação `SupabaseImagemStorage` — sem dependência nova, usa `RestClient` já disponível.
+  - `WebConfig` (só servia `/uploads/**`) removida por completo.
+  - Validado com upload real no bucket de dev `produtos-imagens`; bug de URI encontrado e corrigido nesse processo (ver ADR 021).
+- [x] **Fase 13 — Rate Limit no Login (Bucket4j):**
+  - `LoginRateLimitFilter` (`security/`) limita `POST /api/auth/login` a 5 tentativas/minuto por IP, em memória (sem Redis).
+  - Configurável via `security.rate-limit.login.*`, sem variável de ambiente obrigatória.
+  - Validado com curl em rajada: bloqueia na 6ª tentativa (429), inclusive com credenciais válidas; recupera gradualmente (ver ADR 022).
+  - Limitação conhecida documentada, não resolvida: estado em memória não escala pra múltiplas instâncias; `RemoteAddr` não reflete IP real atrás de proxy.
+- [x] **Fase 14 — Refresh Token com Rotação:**
+  - Access token (JWT) reduzido de 2h pra 15min; novo refresh token opaco (30 dias), hash SHA-256 persistido em `refresh_tokens` (migration `V2`, primeira migration real desde o baseline).
+  - Rotação obrigatória: cada uso de refresh token invalida ele e emite um novo. `POST /api/auth/refresh` e `POST /api/auth/logout` (revogação de verdade, não só client-side).
+  - **`LoginResponseDTO.token` renomeado para `accessToken`** + novo campo `refreshToken` — quebra o contrato da API, frontend precisa ser atualizado (ver backlog).
+  - Validado ponta a ponta com curl no banco de dev: login → refresh → reuso do token antigo falha (rotação confirmada) → logout → refresh pós-logout falha (ver ADR 023).
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -48,6 +71,11 @@
 | 016 | Soft delete via `ativo = false` + `@SQLRestriction` para catálogo |
 | 017 | Payload profundo no GET de produtos para cache em RAM no frontend |
 | 018 | Algoritmo compare/remove/add no Service para sync de relacionamentos JPA |
+| 019 | Flyway com baseline para versionamento de schema; `spring-boot-starter-flyway` obrigatório no Boot 4 |
+| 020 | Sentry para captura de erro 500; chamada manual no `GlobalExceptionHandler`; `sentry-spring-boot-4` obrigatório no Boot 4 |
+| 021 | Supabase Storage via `ImagemStorage`/`SupabaseImagemStorage` (`common/storage/`), substituindo disco local em `ProdutoService` e `UsuarioService` |
+| 022 | Rate limit no login via Bucket4j (token bucket em memória), 5 tentativas/minuto por IP |
+| 023 | Refresh token com rotação (`refresh_tokens`, hash SHA-256); access token reduzido para 15min |
 
 ## 4. Hard Delete vs. Soft Delete
 
@@ -57,6 +85,7 @@
 
 ## 5. Próximos Passos / Backlog
 
+- [ ] **Atualizar frontend pro refresh token:** consumir `accessToken`/`refreshToken` (em vez de `token`), guardar o refresh token, chamar `/api/auth/refresh` em 401, `/api/auth/logout` no botão de sair. **Bloqueante** — o login do frontend quebra sem isso.
 - [ ] **Dark Mode:** Infraestrutura CSS já existe no frontend; falta migrar ~150 hardcodes `bg-white / text-gray-900` para variáveis CSS e criar `ThemeContext`.
 - [ ] **DRE com taxas por bandeira:** Atualmente o DRE usa `taxaDebito` / `taxaCredito` genérico; integrar `taxas_maquininha` para deduções por bandeira.
 - [ ] **Notificações:** Módulo de alertas operacionais (caixa com furo alto, produto sem vendas).

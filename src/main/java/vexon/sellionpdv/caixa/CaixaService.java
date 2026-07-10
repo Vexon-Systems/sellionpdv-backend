@@ -51,7 +51,8 @@ public class CaixaService {
                 });
 
         Long tenantId = TenantContext.getCurrentTenant();
-        Tenant tenant = tenantRepository.findById(tenantId).orElseThrow();
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tenant não encontrado: " + tenantId));
 
         Usuario usuarioLogado = usuarioContextService.getUsuarioAutenticado();
 

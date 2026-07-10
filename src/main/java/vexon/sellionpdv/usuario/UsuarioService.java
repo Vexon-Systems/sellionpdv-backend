@@ -1,19 +1,16 @@
 package vexon.sellionpdv.usuario;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
+import vexon.sellionpdv.common.storage.ImagemStorage;
 import vexon.sellionpdv.usuario.dto.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,9 +20,7 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${app.uploads.base-url}")
-    private String uploadsBaseUrl;
+    private final ImagemStorage imagemStorage;
 
     private static final Map<String, String> MIME_PARA_EXTENSAO = Map.of(
             "image/jpeg", ".jpg",
@@ -121,17 +116,14 @@ public class UsuarioService {
 
         try {
             String nomeArquivo = UUID.randomUUID() + extensao;
-            Path uploadPath = Paths.get("uploads");
-            if (!Files.exists(uploadPath)) Files.createDirectories(uploadPath);
-            Files.copy(file.getInputStream(), uploadPath.resolve(nomeArquivo), StandardCopyOption.REPLACE_EXISTING);
+            String avatarUrl = imagemStorage.salvar(file.getBytes(), nomeArquivo, file.getContentType());
 
-            String avatarUrl = uploadsBaseUrl + nomeArquivo;
             usuario.setAvatarUrl(avatarUrl);
             usuarioRepository.save(usuario);
 
             return Map.of("avatarUrl", avatarUrl);
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao salvar a imagem. Tente novamente.");
+        } catch (IOException e) {
+            throw new BusinessException("Erro ao ler o arquivo enviado.");
         }
     }
 
