@@ -1,0 +1,42 @@
+name: Backup diário do banco de produção
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC = 03:00 America/Sao_Paulo, fora do horário de pico
+  workflow_dispatch: {}     # permite disparar manualmente pelo GitHub, útil pra testar
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gerar dump do Postgres (formato custom, compactado)
+        run: |
+          docker run --rm postgres:17-alpine \
+            pg_dump "${{ secrets.BACKUP_DB_URL }}" -Fc > backup.dump
+
+      - name: Subir backup pro Storage (bucket privado, projeto de staging)
+        run: |
+          NOME_ARQUIVO="backup-$(date +%Y-%m-%d).dump"
+          curl -sf -X PUT \
+            "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$NOME_ARQUIVO" \
+            -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary @backup.dump
+
+      - name: Apagar backups com mais de 14 dias
+        run: |
+          LISTA=$(curl -sf -X POST \
+            "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/list/backups-db" \
+            -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"limit": 1000, "sortBy": {"column": "name", "order": "desc"}}')
+
+          echo "$LISTA" | jq -r '.[].name' | tail -n +15 | while read -r ARQUIVO_ANTIGO; do
+            echo "Apagando backup antigo: $ARQUIVO_ANTIGO"
+            curl -sf -X DELETE \
+              "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$ARQUIVO_ANTIGO" \
+              -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+              -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}"
+          done

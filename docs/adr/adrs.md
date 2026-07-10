@@ -371,3 +371,26 @@ Em produção, as variáveis de ambiente do servidor continuarão sobrescrevendo
 * Tabela `refresh_tokens` cresce a cada login/refresh, nunca é limpa automaticamente — aceitável no volume atual; job de limpeza fica como spec futura se necessário.
 * Rate limit do login (ADR 022) não cobre `/api/auth/refresh` — o refresh token não é adivinhável por força bruta, risco bem menor que senha; documentado, não implementado.
 * Validado ponta a ponta com curl contra o banco de dev real: login → refresh (tokens novos) → reuso do token antigo (falha, 422, confirma rotação) → logout (204) → refresh pós-logout (falha, 422).
+
+---
+
+### ADR 024: Ambiente de Staging (Render + Supabase)
+**Data:** 09/07/2026
+
+**Contexto:** Não existia staging — toda mudança ia direto pra produção, sem lugar seguro pra testar contra Postgres real antes. Ver spec completa em `docs/specs/configurar-staging.md`.
+
+**Decisão:**
+1. Segundo Web Service no Render (`sellionpdv-backend-1`), rastreando a branch `dev` (já existente), com auto-deploy a cada push — espelhando o fluxo `main` → produção que já existia.
+2. Segundo projeto Supabase isolado (`sellionpdv-staging`) pro banco e Storage, evitando que testes em staging contaminem dados de dev ou produção.
+3. `Dockerfile`: removido o `--spring.profiles.active=prod` fixo no `ENTRYPOINT` — o profile ativo agora vem de `SPRING_PROFILES_ACTIVE` (variável de ambiente por serviço), permitindo reusar a **mesma imagem Docker** em produção e staging. Exigiu adicionar `SPRING_PROFILES_ACTIVE=prod` explicitamente no serviço de produção existente, que antes dependia do flag fixo.
+4. `application-staging.properties` criado espelhando `application-prod.properties` — staging deve se comportar como produção de verdade (mesmas otimizações de log), não um ambiente relaxado.
+5. `JWT_SECRET` e `SENTRY_ENVIRONMENT` diferentes por ambiente; Sentry reaproveita o mesmo projeto/conta (só muda a tag de ambiente), sem precisar de conta nova.
+
+**Opções Descartadas:**
+* Branch nova só pra staging (Descartado: `dev` já existe e já é usada como branch de integração antes de `main`, adicionar outra só geraria mais um nome pra lembrar).
+* `render.yaml` (Blueprint/IaC do Render) (Descartado: produção já existe configurada manualmente no painel; introduzir IaC só pro staging criaria duas formas diferentes de gerenciar serviços no mesmo workspace — inconsistência maior que o ganho).
+
+**Trade-offs:**
+* **Achado real, não hipotético**: o primeiro deploy de staging falhou com `relation "usuarios" does not exist` — não por bug de configuração, mas porque a branch `dev` estava 8 commits atrás da branch de feature onde todo o trabalho de Flyway/Sentry/Storage/rate-limit/refresh-token tinha sido feito. `dev` não tinha nenhum Flyway configurado ainda. Resolvido com merge da feature branch pra `dev` antes do deploy funcionar — lição registrada na spec para a próxima vez que um ambiente novo for criado apontando pra uma branch de longa duração.
+* Dois serviços Free no Render compartilham a cota de 750h/mês por workspace; staging "dorme" após 15min sem tráfego (~1min de cold start ao acordar) — aceitável para staging, mas se produção também estiver em Free, o mesmo comportamento já afeta clientes reais (decisão de plano de hospedagem, fora do escopo desta ADR).
+* Validado ponta a ponta: Flyway aplicou `V1` e `V2` do zero no banco de staging vazio; `GET /swagger-ui.html` responde 200; `POST /api/auth/login` retorna `accessToken`+`refreshToken` corretamente contra o serviço publicado.
