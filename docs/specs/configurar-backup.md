@@ -1,8 +1,24 @@
 # Spec: Backup Automático + Runbook de Restauração
 
-> **Status**: Pendente — aguardando aprovação
+> **Status**: Concluído e validado em 2026-07-10 — workflow disparado manualmente com sucesso, dump gerado, upload confirmado no bucket `backups-db`, limpeza de retenção funcionando
 > **Esforço estimado**: ~3-4 horas (setup) + validação — inclui um teste de restauração completo, não só documentação
 > **Prioridade**: Alta (Tier 1 — hoje não existe **nenhum** backup de produção)
+>
+> **Bug real encontrado na validação**: a etapa de limpeza de backups antigos falhava (`curl` exit code 22 / HTTP 400) porque
+> a API de listagem do Supabase Storage (`POST /storage/v1/object/list/{bucket}`) exige o campo `prefix` no corpo da
+> requisição, mesmo vazio — o workflow original só mandava `limit` e `sortBy`. Corrigido adicionando `"prefix": ""` e
+> `"offset": 0`, e adicionada exibição do corpo de erro em caso de falha futura (o `-sf` do curl escondia a mensagem real).
+>
+> **Achado que não é bug de código, mas quase inviabilizou a validação**: durante essa spec, descobrimos que a branch
+> `dev` (que o staging do Render rastreia) estava seriamente dessincronizada de `main` — commits de specs anteriores
+> (Flyway, Sentry, Storage, staging) tinham sido commitados só parcialmente (faltavam os arquivos de implementação,
+> só a spec `.md` ia no commit) e/ou ficavam presos em `feat/refatoracao-comercial` sem nunca chegar a `dev`/`main`.
+> Isso já tinha até "escondido" um bug real do Dockerfile (profile `prod` fixo) por mais de um ciclo de deploy sem
+> ninguém perceber, porque `application-prod.properties` e `application-staging.properties` eram idênticos o
+> suficiente pra não haver diferença de comportamento observável. Lição registrada na ADR 025 e no início da
+> próxima sessão (Tier 2): **sempre confirmar com `git status`/`git diff --stat` que um commit inclui todos os
+> arquivos que a implementação tocou, não só a spec**, e verificar qual branch cada serviço de deploy realmente
+> rastreia antes de assumir.
 
 ---
 
@@ -84,14 +100,22 @@ jobs:
 
       - name: Apagar backups com mais de 14 dias
         run: |
-          LISTA=$(curl -sf -X POST \
+          LISTA=$(curl -s -w "\n%{http_code}" -X POST \
             "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/list/backups-db" \
             -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
             -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{"limit": 1000, "sortBy": {"column": "name", "order": "desc"}}')
+            -d '{"prefix": "", "limit": 1000, "offset": 0, "sortBy": {"column": "name", "order": "desc"}}')
 
-          echo "$LISTA" | jq -r '.[].name' | tail -n +15 | while read -r ARQUIVO_ANTIGO; do
+          STATUS=$(echo "$LISTA" | tail -n1)
+          BODY=$(echo "$LISTA" | sed '$d')
+
+          if [ "$STATUS" != "200" ]; then
+            echo "Falha ao listar backups (HTTP $STATUS): $BODY"
+            exit 1
+          fi
+
+          echo "$BODY" | jq -r '.[].name' | tail -n +15 | while read -r ARQUIVO_ANTIGO; do
             echo "Apagando backup antigo: $ARQUIVO_ANTIGO"
             curl -sf -X DELETE \
               "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$ARQUIVO_ANTIGO" \
