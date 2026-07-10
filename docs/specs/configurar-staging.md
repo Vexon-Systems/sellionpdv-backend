@@ -1,6 +1,8 @@
 # Spec: Ambiente de Staging
 
-> **Status**: Código implementado e validado (Passos 1-3 e 7); Passos 4-6 pendentes — dependem de ação sua no Render/Supabase
+> **Status**: Concluído e validado em 2026-07-09 — staging no ar em `https://sellionpdv-backend-1.onrender.com`, Flyway criou o schema do zero (V1+V2), login retorna accessToken/refreshToken corretamente.
+>
+> **Achado real durante a validação**: o primeiro deploy falhou com `relation "usuarios" does not exist` — não por bug de código, mas porque a branch `dev` (que o staging rastreia) estava 8 commits atrás de `feat/refatoracao-comercial`, sem nenhum Flyway configurado ainda. Resolvido fazendo merge da branch de feature pra `dev` antes do deploy funcionar. Lição: ao criar um ambiente novo que rastreia uma branch de longa duração, confirmar que ela está atualizada com o trabalho recente antes de investigar bug de código.
 > **Esforço estimado**: ~2-3 horas (setup) + validação — a maior parte é ação manual sua no painel do Render/Supabase, não código
 > **Prioridade**: Alta (Tier 1 — hoje toda mudança vai direto pra produção, sem lugar seguro pra testar antes)
 
