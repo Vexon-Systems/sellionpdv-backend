@@ -37,9 +37,12 @@ EXPOSE 8080
 
 # -XX:MaxRAMPercentage=75.0   → limita o heap a 75% da memória do container
 # -Djava.security.egd=...     → evita lentidão de startup por falta de entropia no Linux
-# --spring.profiles.active=prod → ativa application-prod.properties
+#
+# O profile ativo (prod, staging, etc.) NÃO é fixado aqui — vem da variável de
+# ambiente SPRING_PROFILES_ACTIVE, configurada por serviço no provedor de deploy.
+# Isso permite reusar a mesma imagem Docker em produção e staging. Ver
+# docs/specs/configurar-staging.md.
 ENTRYPOINT ["java", \
   "-XX:MaxRAMPercentage=75.0", \
   "-Djava.security.egd=file:/dev/./urandom", \
-  "-jar", "app.jar", \
-  "--spring.profiles.active=prod"]
+  "-jar", "app.jar"]

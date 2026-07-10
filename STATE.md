@@ -1,5 +1,5 @@
 # Estado Atual do Sistema: Sellion PDV (Backend)
-**Última Atualização:** 23/06/2026 por Eduardo Gonçalves (Tech Lead)
+**Última Atualização:** 09/07/2026 por Eduardo Gonçalves (Tech Lead)
 
 ## 1. Contexto Rápido (Para a IA)
 **O que é:** SaaS Multi-Tenant para gestão de Ponto de Venda (PDV) de franquias alimentícias.
@@ -58,6 +58,10 @@
   - Rotação obrigatória: cada uso de refresh token invalida ele e emite um novo. `POST /api/auth/refresh` e `POST /api/auth/logout` (revogação de verdade, não só client-side).
   - **`LoginResponseDTO.token` renomeado para `accessToken`** + novo campo `refreshToken` — quebra o contrato da API, frontend precisa ser atualizado (ver backlog).
   - Validado ponta a ponta com curl no banco de dev: login → refresh → reuso do token antigo falha (rotação confirmada) → logout → refresh pós-logout falha (ver ADR 023).
+- [x] **Fase 15 — Ambiente de Staging (Render + Supabase):**
+  - Segundo Web Service no Render (`sellionpdv-backend-1`, branch `dev`, auto-deploy) + segundo projeto Supabase (`sellionpdv-staging`), isolado de dev/produção.
+  - `Dockerfile`: profile não é mais fixo na imagem (`SPRING_PROFILES_ACTIVE` via variável de ambiente); mesma imagem serve produção e staging.
+  - Validado no ar: `https://sellionpdv-backend-1.onrender.com` — Flyway criou o schema do zero (V1+V2), `/swagger-ui.html` responde, login retorna `accessToken`/`refreshToken` (ver ADR 024).
 
 ## 3. Decisões de Arquitetura Vigentes (ADRs)
 
@@ -76,6 +80,7 @@
 | 021 | Supabase Storage via `ImagemStorage`/`SupabaseImagemStorage` (`common/storage/`), substituindo disco local em `ProdutoService` e `UsuarioService` |
 | 022 | Rate limit no login via Bucket4j (token bucket em memória), 5 tentativas/minuto por IP |
 | 023 | Refresh token com rotação (`refresh_tokens`, hash SHA-256); access token reduzido para 15min |
+| 024 | Staging no Render (branch `dev`) + Supabase isolado; profile via `SPRING_PROFILES_ACTIVE`, não fixo na imagem Docker |
 
 ## 4. Hard Delete vs. Soft Delete
 
