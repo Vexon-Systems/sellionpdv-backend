@@ -1,12 +1,9 @@
 # Spec: Refresh Token
 
 > **Status**: Concluído e validado em 2026-07-09 — migration V2 aplicada no banco de dev real; fluxo completo login → refresh → rotação → logout testado ponta a ponta via curl; access token confirmado expirando em ~15min (era 2h). 228/228 testes.
+> Frontend atualizado em 2026-07-10 — consome `accessToken`/`refreshToken`, chama `/api/auth/refresh` em 401 e `/api/auth/logout` no logout. Bloqueante resolvido.
 > **Esforço estimado**: ~4-6 horas (setup) + validação — a maior das specs de Tier 0/1 até agora
 > **Prioridade**: Alta (Tier 1 — hoje o token dura 2h, sem renovação e sem revogação: se vazar, fica válido até expirar sozinho)
->
-> **Lembrete pendente, fora deste repositório**: o frontend precisa ser atualizado pra consumir `accessToken`/`refreshToken`
-> em vez de `token`, guardar o refresh token, chamar `/api/auth/refresh` em 401, e `/api/auth/logout` no botão de sair
-> (ver seção 2). Sem isso, o login do frontend quebra assim que essa mudança for pro ar.
 
 ---
 

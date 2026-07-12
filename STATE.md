@@ -97,8 +97,9 @@
 
 ## 5. Próximos Passos / Backlog
 
-- [ ] **Atualizar frontend pro refresh token:** consumir `accessToken`/`refreshToken` (em vez de `token`), guardar o refresh token, chamar `/api/auth/refresh` em 401, `/api/auth/logout` no botão de sair. **Bloqueante** — o login do frontend quebra sem isso.
+- [x] **Atualizar frontend pro refresh token:** consumir `accessToken`/`refreshToken` (em vez de `token`), guardar o refresh token, chamar `/api/auth/refresh` em 401, `/api/auth/logout` no botão de sair. Resolvido em 2026-07-10 (fora deste repositório).
 - [ ] **Dark Mode:** Infraestrutura CSS já existe no frontend; falta migrar ~150 hardcodes `bg-white / text-gray-900` para variáveis CSS e criar `ThemeContext`.
 - [ ] **DRE com taxas por bandeira:** Atualmente o DRE usa `taxaDebito` / `taxaCredito` genérico; integrar `taxas_maquininha` para deduções por bandeira.
 - [ ] **Notificações:** Módulo de alertas operacionais (caixa com furo alto, produto sem vendas).
 - [ ] **Relatório de Equipe:** Produtividade por operador (vendas / turno).
+- [ ] **Billing (Asaas):** Tier 2, spec pronta em `docs/specs/configurar-billing-asaas.md` — plano único fixo por tenant, bloqueio automático em inadimplência via webhook. Ainda não implementado.
