@@ -26,6 +26,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -133,7 +134,7 @@ class CaixaServiceTest {
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.empty());
             when(tenantRepository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
             when(usuarioContextService.getUsuarioAutenticado()).thenReturn(operador);
-            when(caixaRepository.save(any(Caixa.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(caixaRepository.saveAndFlush(any(Caixa.class))).thenAnswer(inv -> inv.getArgument(0));
         }
 
         @AfterEach
@@ -146,7 +147,7 @@ class CaixaServiceTest {
         void deve_AbrirCaixa_com_StatusABERTO_SaldoInicial_Tenant_e_Operador() {
             ArgumentCaptor<Caixa> captor = ArgumentCaptor.forClass(Caixa.class);
             caixaService.abrirCaixa(umCaixaRequestDTO(new BigDecimal("150.00")));
-            verify(caixaRepository).save(captor.capture());
+            verify(caixaRepository).saveAndFlush(captor.capture());
 
             Caixa salvo = captor.getValue();
             assertEquals(StatusCaixa.ABERTO, salvo.getStatus());
@@ -161,7 +162,7 @@ class CaixaServiceTest {
         void deve_AbrirCaixa_quando_SaldoInicialZero() {
             ArgumentCaptor<Caixa> captor = ArgumentCaptor.forClass(Caixa.class);
             caixaService.abrirCaixa(umCaixaRequestDTO(BigDecimal.ZERO));
-            verify(caixaRepository).save(captor.capture());
+            verify(caixaRepository).saveAndFlush(captor.capture());
 
             assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().getSaldoInicial()));
         }
@@ -186,7 +187,24 @@ class CaixaServiceTest {
                     () -> caixaService.abrirCaixa(umCaixaRequestDTO(new BigDecimal("50.00"))));
 
             verify(tenantRepository, never()).findById(any());
-            verify(caixaRepository, never()).save(any());
+            verify(caixaRepository, never()).saveAndFlush(any());
+        }
+
+        @Test
+        @DisplayName("C31 — deve converter DataIntegrityViolationException em BusinessException (corrida perdida, SAST-18)")
+        void deve_ConverterDataIntegrityViolationException_em_BusinessException() {
+            Tenant tenant = umTenant();
+            TenantContext.setCurrentTenant(tenant.getId());
+            when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.empty());
+            when(tenantRepository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
+            when(usuarioContextService.getUsuarioAutenticado()).thenReturn(umOperador(tenant));
+            when(caixaRepository.saveAndFlush(any(Caixa.class)))
+                    .thenThrow(new org.springframework.dao.DataIntegrityViolationException("uq violation"));
+
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> caixaService.abrirCaixa(umCaixaRequestDTO(new BigDecimal("50.00"))));
+
+            assertEquals("Já existe um caixa aberto.", ex.getMessage());
         }
 
         @Test
@@ -201,7 +219,7 @@ class CaixaServiceTest {
             assertThrows(ResourceNotFoundException.class,
                     () -> caixaService.abrirCaixa(umCaixaRequestDTO(new BigDecimal("50.00"))));
 
-            verify(caixaRepository, never()).save(any());
+            verify(caixaRepository, never()).saveAndFlush(any());
         }
     }
 
@@ -212,16 +230,17 @@ class CaixaServiceTest {
     class RegistrarMovimentacao {
 
         @Test
-        @DisplayName("C9 — deve registrar SANGRIA com tipo, valor, motivo, caixa e tenant corretos")
+        @DisplayName("C9 — deve registrar SANGRIA com tipo, valor, motivo, caixa, tenant e idempotencyKey corretos")
         void deve_RegistrarSangria_com_Tipo_Valor_Motivo_e_CaixaCorretos() {
             Caixa caixa = umCaixaAberto(umTenant());
+            UUID key = UUID.randomUUID();
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.of(caixa));
 
             MovimentacaoCaixaRequestDTO dto = new MovimentacaoCaixaRequestDTO(
                     TipoMovimentacaoCaixa.SANGRIA, new BigDecimal("75.00"), "Pagamento de fornecedor");
 
             ArgumentCaptor<MovimentacaoCaixa> captor = ArgumentCaptor.forClass(MovimentacaoCaixa.class);
-            caixaService.registrarMovimentacao(dto);
+            caixaService.registrarMovimentacao(dto, key);
             verify(movimentacaoRepository).save(captor.capture());
 
             MovimentacaoCaixa salva = captor.getValue();
@@ -231,6 +250,7 @@ class CaixaServiceTest {
             assertSame(caixa, salva.getCaixa());
             assertSame(caixa.getTenant(), salva.getTenant());
             assertNotNull(salva.getDataMovimentacao());
+            assertEquals(key, salva.getIdempotencyKey());
         }
 
         @Test
@@ -243,7 +263,7 @@ class CaixaServiceTest {
                     TipoMovimentacaoCaixa.REFORCO, new BigDecimal("200.00"), "Reforço de troco");
 
             ArgumentCaptor<MovimentacaoCaixa> captor = ArgumentCaptor.forClass(MovimentacaoCaixa.class);
-            caixaService.registrarMovimentacao(dto);
+            caixaService.registrarMovimentacao(dto, UUID.randomUUID());
             verify(movimentacaoRepository).save(captor.capture());
 
             MovimentacaoCaixa salva = captor.getValue();
@@ -258,8 +278,22 @@ class CaixaServiceTest {
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.empty());
 
             assertThrows(ResourceNotFoundException.class,
-                    () -> caixaService.registrarMovimentacao(umaSangriaRequestDTO()));
+                    () -> caixaService.registrarMovimentacao(umaSangriaRequestDTO(), UUID.randomUUID()));
 
+            verify(movimentacaoRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("C30 — deve lançar BusinessException quando a idempotencyKey já foi usada (SAST-19)")
+        void deve_LancarBusinessException_quando_IdempotencyKeyDuplicada() {
+            UUID key = UUID.randomUUID();
+            MovimentacaoCaixa existente = umaSangria(umCaixaAberto(umTenant()), new BigDecimal("50.00"));
+            when(movimentacaoRepository.findByIdempotencyKey(key)).thenReturn(Optional.of(existente));
+
+            assertThrows(BusinessException.class,
+                    () -> caixaService.registrarMovimentacao(umaSangriaRequestDTO(), key));
+
+            verify(caixaRepository, never()).findByStatus(any());
             verify(movimentacaoRepository, never()).save(any());
         }
     }

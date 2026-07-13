@@ -24,6 +24,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/relatorios")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class RelatorioController {
 
     private final RelatorioService relatorioService;
@@ -32,7 +33,6 @@ public class RelatorioController {
     private final CaixasPdfService caixasPdfService;
 
     @GetMapping("/vendas")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<RelatorioVendaDTO>> listarVendas(
             @RequestParam(required = false) String status,
             @PageableDefault(size = 20, sort = "dataVenda", direction = Sort.Direction.DESC) Pageable pageable) {
@@ -41,13 +41,11 @@ public class RelatorioController {
     }
 
     @GetMapping("/vendas/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ReciboVendaResponseDTO> obterReciboVenda(@PathVariable Long id) {
         return ResponseEntity.ok(relatorioService.obterRecibo(id));
     }
 
     @GetMapping("/dre")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<DreResponseDTO> obterDreGerencial(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
@@ -60,7 +58,6 @@ public class RelatorioController {
     }
 
     @GetMapping("/dre.pdf")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> baixarDrePdf(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
@@ -79,7 +76,6 @@ public class RelatorioController {
     }
 
     @GetMapping("/vendas.pdf")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> baixarHistoricoVendasPdf(
             @RequestParam(required = false) String status) {
 
@@ -93,7 +89,6 @@ public class RelatorioController {
     }
 
     @GetMapping("/caixas.pdf")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> baixarCaixasPdf(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFinal) {
@@ -128,7 +123,6 @@ public class RelatorioController {
     }
 
     @GetMapping("/comparativo")
-    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Gera um balanço comparativo usando datas customizadas")
     public ResponseEntity<RelatorioComparativoResponseDTO> obterRelatorioComparativo(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicial,

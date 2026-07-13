@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 import vexon.sellionpdv.auth.dto.LoginResponseDTO;
 import vexon.sellionpdv.auth.dto.LogoutRequestDTO;
 import vexon.sellionpdv.auth.dto.RefreshRequestDTO;
@@ -35,6 +36,8 @@ class AuthServiceTest {
     @Mock private RefreshTokenService refreshTokenService;
     @InjectMocks private AuthService authService;
 
+    private static final String HASH_DUMMY = "$argon2id$dummy-hash-de-teste";
+
     private Tenant tenant;
     private Usuario usuario;
 
@@ -42,6 +45,9 @@ class AuthServiceTest {
     void setUp() {
         tenant = umTenant();
         usuario = umUsuario(tenant);
+        // @PostConstruct não roda com @InjectMocks (sem contexto Spring) — simula o
+        // hash gerado no boot real para os testes que dependem dele (SAST-11).
+        ReflectionTestUtils.setField(authService, "hashDummy", HASH_DUMMY);
     }
 
     // ─── caminho feliz ────────────────────────────────────────────────────────────
@@ -83,11 +89,15 @@ class AuthServiceTest {
         void deve_LancarBusinessException_quando_EmailNaoExiste() {
             when(usuarioRepository.findByEmailWithTenant("operador@test.com"))
                     .thenReturn(Optional.empty());
+            when(passwordEncoder.matches("senha123", HASH_DUMMY)).thenReturn(false);
 
             assertThrows(BusinessException.class,
                     () -> authService.realizarLogin(umLoginRequestDTO()));
 
-            verify(passwordEncoder, never()).matches(any(), any());
+            // SAST-11: mesmo sem usuário, o Argon2 é chamado contra um hash dummy — isso
+            // iguala o tempo de resposta ao caminho "e-mail existe, senha errada" e evita
+            // que a ausência dessa chamada vire um canal de tempo para enumerar e-mails.
+            verify(passwordEncoder).matches("senha123", HASH_DUMMY);
             verify(tokenService, never()).gerarToken(any());
             verify(usuarioRepository, never()).save(any());
         }

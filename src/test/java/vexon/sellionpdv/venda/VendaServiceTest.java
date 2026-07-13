@@ -193,14 +193,17 @@ class VendaServiceTest {
         }
 
         @Test
-        @DisplayName("V5 — cancelarVenda deve gravar status CANCELADA, justificativa e timestamp")
+        @DisplayName("V5 — cancelarVenda deve gravar status CANCELADA, justificativa, timestamp e operador (SAST-08)")
         void deve_CancelarVenda_gravando_StatusJustificativaETimestamp() {
+            Tenant tenant = umTenant();
+            Usuario operador = umOperador(tenant);
             Venda venda = umaVenda().comSubtotal(new BigDecimal("30.00")).build();
 
             when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
             when(vendaRepository.save(any(Venda.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("Pedido duplicado"));
+            vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("Pedido duplicado"), "operador@test.com");
 
             ArgumentCaptor<Venda> captor = ArgumentCaptor.forClass(Venda.class);
             verify(vendaRepository).save(captor.capture());
@@ -209,6 +212,7 @@ class VendaServiceTest {
             assertEquals(StatusVenda.CANCELADA, cancelada.getStatus());
             assertEquals("Pedido duplicado", cancelada.getJustificativaCancelamento());
             assertNotNull(cancelada.getDataCancelamento());
+            assertSame(operador, cancelada.getUsuarioCancelamento());
         }
     }
 
@@ -316,6 +320,29 @@ class VendaServiceTest {
         }
 
         @Test
+        @DisplayName("V10 — deve lançar BusinessException quando o desconto excede o subtotal (SAST-04)")
+        void deve_LancarBusinessException_quando_DescontoExcedeSubtotal() {
+            Produto produto = umProduto(new BigDecimal("20.00"));
+            UUID key = UUID.randomUUID();
+
+            var dto = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("30.00")
+            );
+
+            when(vendaRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+            when(caixaService.buscarCaixaAtual()).thenReturn(caixa);
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> vendaService.registrarVenda(dto, key, "operador@test.com"));
+
+            assertEquals("O desconto não pode ser maior que o subtotal da venda.", ex.getMessage());
+            verify(vendaRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("deve lançar ResourceNotFoundException quando operador não existe")
         void deve_LancarResourceNotFoundException_quando_OperadorInexistente() {
             UUID key = UUID.randomUUID();
@@ -341,7 +368,7 @@ class VendaServiceTest {
             when(vendaRepository.findById(404L)).thenReturn(Optional.empty());
 
             assertThrows(ResourceNotFoundException.class,
-                    () -> vendaService.cancelarVenda(404L, new CancelamentoVendaRequestDTO("motivo")));
+                    () -> vendaService.cancelarVenda(404L, new CancelamentoVendaRequestDTO("motivo"), "operador@test.com"));
 
             verify(vendaRepository, never()).save(any());
         }
@@ -435,8 +462,8 @@ class VendaServiceTest {
         }
 
         @Test
-        @DisplayName("V13 — cancelar venda já cancelada deve sobrescrever justificativa sem lançar erro")
-        void deve_PermitirNovoCancelamento_quando_VendaJaCancelada() {
+        @DisplayName("V13 — cancelar venda já cancelada deve lançar BusinessException (SAST-08, corrige comportamento antigo)")
+        void deve_RejeitarNovoCancelamento_quando_VendaJaCancelada() {
             Venda venda = umaVenda()
                     .comStatus(StatusVenda.CANCELADA)
                     .comJustificativa("motivo original")
@@ -446,14 +473,28 @@ class VendaServiceTest {
                     .build(); // totalFinal auto → TEN - ZERO = TEN
 
             when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
-            when(vendaRepository.save(any(Venda.class))).thenAnswer(inv -> inv.getArgument(0));
 
-            assertDoesNotThrow(() ->
-                    vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("novo motivo")));
+            BusinessException ex = assertThrows(BusinessException.class, () ->
+                    vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("novo motivo"), "operador@test.com"));
 
-            ArgumentCaptor<Venda> captor = ArgumentCaptor.forClass(Venda.class);
-            verify(vendaRepository).save(captor.capture());
-            assertEquals("novo motivo", captor.getValue().getJustificativaCancelamento());
+            assertEquals("Esta venda já está cancelada.", ex.getMessage());
+            assertEquals("motivo original", venda.getJustificativaCancelamento(), "justificativa original não deve ser sobrescrita");
+            verify(vendaRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("deve lançar BusinessException ao cancelar venda de um caixa já FECHADO (SAST-08)")
+        void deve_RejeitarCancelamento_quando_CaixaJaFechado() {
+            Caixa caixaFechado = Caixa.builder().id(10L).status(vexon.sellionpdv.caixa.StatusCaixa.FECHADO).build();
+            Venda venda = umaVenda().comSubtotal(BigDecimal.TEN).comCaixa(caixaFechado).build();
+
+            when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
+
+            BusinessException ex = assertThrows(BusinessException.class, () ->
+                    vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("motivo"), "operador@test.com"));
+
+            assertEquals("Não é possível cancelar uma venda de um caixa já fechado.", ex.getMessage());
+            verify(vendaRepository, never()).save(any());
         }
 
         @Test

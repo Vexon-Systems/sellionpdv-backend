@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.CaixaService;
+import vexon.sellionpdv.caixa.StatusCaixa;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.common.service.UsuarioContextService;
@@ -116,6 +117,10 @@ public class VendaService {
                 .map(ItemVenda::getSubtotalItem)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        if (venda.getDescontoAplicado().compareTo(subtotalVenda) > 0) {
+            throw new BusinessException("O desconto não pode ser maior que o subtotal da venda.");
+        }
+
         venda.setItens(itens);
         venda.setSubtotal(subtotalVenda);
         venda.setTotalFinal(subtotalVenda.subtract(venda.getDescontoAplicado()));
@@ -124,13 +129,25 @@ public class VendaService {
     }
 
     @Transactional
-    public void cancelarVenda(Long id, CancelamentoVendaRequestDTO dto) {
+    public void cancelarVenda(Long id, CancelamentoVendaRequestDTO dto, String emailOperador) {
         Venda venda = vendaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Venda não encontrada."));
+
+        if (venda.getStatus() == StatusVenda.CANCELADA) {
+            throw new BusinessException("Esta venda já está cancelada.");
+        }
+
+        if (venda.getCaixa().getStatus() == StatusCaixa.FECHADO) {
+            throw new BusinessException("Não é possível cancelar uma venda de um caixa já fechado.");
+        }
+
+        Usuario operador = usuarioRepository.findByEmailWithTenant(emailOperador)
+                .orElseThrow(() -> new ResourceNotFoundException("Operador não encontrado."));
 
         venda.setStatus(StatusVenda.CANCELADA);
         venda.setJustificativaCancelamento(dto.justificativa());
         venda.setDataCancelamento(OffsetDateTime.now());
+        venda.setUsuarioCancelamento(operador);
 
         vendaRepository.save(venda);
     }

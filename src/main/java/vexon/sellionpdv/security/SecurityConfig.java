@@ -3,7 +3,6 @@ package vexon.sellionpdv.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -37,7 +36,6 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
                     req.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll();
-                    req.requestMatchers(HttpMethod.GET, "/uploads/**").permitAll();
 
                     req.requestMatchers(
                             "/v3/api-docs",

@@ -36,7 +36,9 @@ public class SupabaseImagemStorage implements ImagemStorage {
 
             return "%s/storage/v1/object/public/%s/%s".formatted(storageUrl, bucket, nomeArquivo);
         } catch (Exception e) {
-            throw new BusinessException("Erro ao enviar imagem para o armazenamento. Tente novamente.");
+            // SAST-22: encadeia a causa original — mensagem ao cliente continua genérica,
+            // mas a causa real (ex.: service-role-key expirada) fica visível no Sentry/log.
+            throw new BusinessException("Erro ao enviar imagem para o armazenamento. Tente novamente.", e);
         }
     }
 }
