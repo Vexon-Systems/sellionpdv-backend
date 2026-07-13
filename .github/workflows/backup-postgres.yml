@@ -1,5 +1,8 @@
 name: Backup diário do banco de produção
 
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: "0 6 * * *"   # 06:00 UTC = 03:00 America/Sao_Paulo, fora do horário de pico
@@ -9,22 +12,35 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: Gerar dump do Postgres (formato custom, compactado)
-        run: |
-          docker run --rm postgres:17-alpine \
-            pg_dump "${{ secrets.BACKUP_DB_URL }}" -Fc > backup.dump
-
-      - name: Subir backup pro Storage (bucket privado, projeto de staging)
+      - name: Gerar dump do Postgres e checksum (SAST-24)
         run: |
           NOME_ARQUIVO="backup-$(date +%Y-%m-%d).dump"
+          docker run --rm postgres:17-alpine \
+            pg_dump "${{ secrets.BACKUP_DB_URL }}" -Fc > "$NOME_ARQUIVO"
+
+          # Checksum calculado sobre o arquivo já com o nome final, para que
+          # "sha256sum -c" funcione direto na restauração sem precisar renomear nada.
+          sha256sum "$NOME_ARQUIVO" > "$NOME_ARQUIVO.sha256"
+
+          echo "NOME_ARQUIVO=$NOME_ARQUIVO" >> "$GITHUB_ENV"
+
+      - name: Subir backup e checksum pro Storage (bucket privado, projeto de staging)
+        run: |
           curl -sf -X PUT \
-            "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$NOME_ARQUIVO" \
+            "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/${NOME_ARQUIVO}" \
             -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
             -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/octet-stream" \
-            --data-binary @backup.dump
+            --data-binary @"${NOME_ARQUIVO}"
 
-      - name: Apagar backups com mais de 14 dias
+          curl -sf -X PUT \
+            "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/${NOME_ARQUIVO}.sha256" \
+            -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: text/plain" \
+            --data-binary @"${NOME_ARQUIVO}.sha256"
+
+      - name: Apagar backups com mais de 14 dias (dump + checksum juntos)
         run: |
           LISTA=$(curl -s -w "\n%{http_code}" -X POST \
             "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/list/backups-db" \
@@ -41,10 +57,16 @@ jobs:
             exit 1
           fi
 
-          echo "$BODY" | jq -r '.[].name' | tail -n +15 | while read -r ARQUIVO_ANTIGO; do
-            echo "Apagando backup antigo: $ARQUIVO_ANTIGO"
+          # Conta retenção só pelos .dump (ignora os .sha256 na contagem dos "14 mais
+          # recentes") — cada dump agora tem um sidecar de checksum junto.
+          echo "$BODY" | jq -r '.[].name' | grep '\.dump$' | tail -n +15 | while read -r ARQUIVO_ANTIGO; do
+            echo "Apagando backup antigo: $ARQUIVO_ANTIGO (e seu checksum)"
             curl -sf -X DELETE \
               "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$ARQUIVO_ANTIGO" \
+              -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
+              -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}"
+            curl -sf -X DELETE \
+              "${{ secrets.BACKUP_STORAGE_URL }}/storage/v1/object/backups-db/$ARQUIVO_ANTIGO.sha256" \
               -H "Authorization: Bearer ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}" \
               -H "apikey: ${{ secrets.BACKUP_STORAGE_SERVICE_ROLE_KEY }}"
           done

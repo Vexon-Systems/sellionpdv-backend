@@ -316,6 +316,29 @@ class VendaServiceTest {
         }
 
         @Test
+        @DisplayName("V10 — deve lançar BusinessException quando o desconto excede o subtotal (SAST-04)")
+        void deve_LancarBusinessException_quando_DescontoExcedeSubtotal() {
+            Produto produto = umProduto(new BigDecimal("20.00"));
+            UUID key = UUID.randomUUID();
+
+            var dto = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("30.00")
+            );
+
+            when(vendaRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+            when(caixaService.buscarCaixaAtual()).thenReturn(caixa);
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> vendaService.registrarVenda(dto, key, "operador@test.com"));
+
+            assertEquals("O desconto não pode ser maior que o subtotal da venda.", ex.getMessage());
+            verify(vendaRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("deve lançar ResourceNotFoundException quando operador não existe")
         void deve_LancarResourceNotFoundException_quando_OperadorInexistente() {
             UUID key = UUID.randomUUID();

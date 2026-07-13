@@ -54,6 +54,10 @@ public class FuncionarioService {
     public FuncionarioResponseDTO atualizarFuncionario(Long id, FuncionarioAtualizacaoRequestDTO request, String emailLogado) {
         Usuario usuarioLogado = buscarUsuarioLogado(emailLogado);
 
+        if (usuarioLogado.getId().equals(id)) {
+            throw new BusinessException("Você não pode alterar o próprio cadastro por este endpoint.");
+        }
+
         Usuario funcionario = usuarioRepository.findByIdAndTenantAndAtivoTrue(id, usuarioLogado.getTenant())
                 .orElseThrow(() -> new ResourceNotFoundException("Funcionário não encontrado."));
 

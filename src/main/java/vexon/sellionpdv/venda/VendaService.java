@@ -116,6 +116,10 @@ public class VendaService {
                 .map(ItemVenda::getSubtotalItem)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        if (venda.getDescontoAplicado().compareTo(subtotalVenda) > 0) {
+            throw new BusinessException("O desconto não pode ser maior que o subtotal da venda.");
+        }
+
         venda.setItens(itens);
         venda.setSubtotal(subtotalVenda);
         venda.setTotalFinal(subtotalVenda.subtract(venda.getDescontoAplicado()));

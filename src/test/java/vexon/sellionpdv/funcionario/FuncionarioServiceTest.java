@@ -265,6 +265,23 @@ class FuncionarioServiceTest {
     }
 
     @Test
+    @DisplayName("Não deve permitir que o usuário atualize o próprio cadastro (defesa em profundidade contra auto-promoção)")
+    void naoDevePermitirAutoEdicao() {
+        FuncionarioAtualizacaoRequestDTO request = new FuncionarioAtualizacaoRequestDTO("Qualquer Nome", "ADMIN");
+
+        when(usuarioRepository.findByEmailWithTenant("admin@sellion.com.br"))
+                .thenReturn(Optional.of(adminLogado));
+
+        BusinessException exception = assertThrows(BusinessException.class, () ->
+                funcionarioService.atualizarFuncionario(1L, request, "admin@sellion.com.br")
+        );
+
+        assertEquals("Você não pode alterar o próprio cadastro por este endpoint.", exception.getMessage());
+        verify(usuarioRepository, never()).findByIdAndTenantAndAtivoTrue(any(), any());
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("Não deve permitir que o usuário inative a própria conta")
     void naoDevePermitirAutoExclusao() {
         when(usuarioRepository.findByEmailWithTenant("admin@sellion.com.br"))

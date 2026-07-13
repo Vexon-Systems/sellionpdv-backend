@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -59,6 +60,14 @@ public class GlobalExceptionHandler {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corpo da requisição inválido ou malformado.");
         detail.setTitle("Requisição inválida");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN,
+                "Você não tem permissão para executar esta ação.");
+        detail.setTitle("Acesso negado");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(detail);
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
