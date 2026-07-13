@@ -230,7 +230,7 @@ public class ProdutoService {
             String nomeArquivo = UUID.randomUUID() + extensao;
             return imagemStorage.salvar(conteudo, nomeArquivo, contentType);
         } catch (IOException e) {
-            throw new BusinessException("Erro ao ler o arquivo enviado.");
+            throw new BusinessException("Erro ao ler o arquivo enviado.", e);
         }
     }
 

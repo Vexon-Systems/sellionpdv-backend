@@ -142,6 +142,10 @@
 			<artifactId>bucket4j-core</artifactId>
 			<version>8.10.1</version>
 		</dependency>
+		<dependency>
+			<groupId>com.github.ben-manes.caffeine</groupId>
+			<artifactId>caffeine</artifactId>
+		</dependency>
 
 	</dependencies>
 
@@ -221,6 +225,15 @@
 						</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<!-- Fase 5: scanner de CVEs sob demanda — "mvn org.owasp:dependency-check-maven:check".
+			     Sem <executions>/binding de propósito: rodar em todo "mvn test"/"mvn verify"
+			     exigiria rede (atualização da base do NVD) e poderia quebrar o build/CI sem
+			     aviso. Rode manualmente ou adicione como job separado de CI quando quiser. -->
+			<plugin>
+				<groupId>org.owasp</groupId>
+				<artifactId>dependency-check-maven</artifactId>
+				<version>12.1.0</version>
 			</plugin>
 		</plugins>
 	</build>

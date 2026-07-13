@@ -43,12 +43,26 @@ public class RefreshTokenService {
         RefreshToken entidade = refreshTokenRepository.findByTokenHash(hash(tokenBruto))
                 .orElseThrow(() -> new BusinessException("Sessão expirada. Faça login novamente."));
 
-        if (entidade.getRevogado() || entidade.getExpiraEm().isBefore(Instant.now())) {
+        if (entidade.getRevogado()) {
+            // SAST-15: reapresentar um token já revogado é sinal de possível roubo (o
+            // fluxo legítimo nunca reusa um token depois de trocá-lo pelo próximo) —
+            // revoga todas as sessões ativas do usuário como precaução, não só nega
+            // esta tentativa isolada.
+            revogarTodosOsTokensAtivos(entidade.getUsuario());
+            throw new BusinessException("Sessão expirada. Faça login novamente.");
+        }
+
+        if (entidade.getExpiraEm().isBefore(Instant.now())) {
             throw new BusinessException("Sessão expirada. Faça login novamente.");
         }
 
         entidade.setRevogado(true);
         return entidade;
+    }
+
+    private void revogarTodosOsTokensAtivos(Usuario usuario) {
+        refreshTokenRepository.findAllByUsuarioAndRevogadoFalse(usuario)
+                .forEach(token -> token.setRevogado(true));
     }
 
     @Transactional

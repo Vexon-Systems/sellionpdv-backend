@@ -126,7 +126,7 @@ public class UsuarioService {
 
             return Map.of("avatarUrl", avatarUrl);
         } catch (IOException e) {
-            throw new BusinessException("Erro ao ler o arquivo enviado.");
+            throw new BusinessException("Erro ao ler o arquivo enviado.", e);
         }
     }
 
