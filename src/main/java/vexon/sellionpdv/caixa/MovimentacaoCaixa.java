@@ -7,6 +7,7 @@ import vexon.sellionpdv.tenant.Tenant;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "movimentacoes_caixa")
@@ -45,4 +46,7 @@ public class MovimentacaoCaixa {
 
     @Column(name = "data_movimentacao", nullable = false)
     private OffsetDateTime dataMovimentacao;
+
+    @Column(name = "idempotency_key", unique = true)
+    private UUID idempotencyKey;
 }

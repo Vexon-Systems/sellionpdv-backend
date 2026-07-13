@@ -104,6 +104,10 @@ public final class VendaTestFixtures {
         private OffsetDateTime dataVenda = OffsetDateTime.now();
         private String justificativaCancelamento = null;
         private OffsetDateTime dataCancelamento = null;
+        // Toda Venda real tem caixa (nullable=false no banco) — ABERTO por padrão para
+        // não quebrar os testes existentes; sobrescreva com comCaixa(...) para simular
+        // cancelamento com caixa já FECHADO (SAST-08).
+        private Caixa caixa = Caixa.builder().id(10L).status(StatusCaixa.ABERTO).build();
 
         private VendaBuilder() {}
 
@@ -118,6 +122,7 @@ public final class VendaTestFixtures {
         public VendaBuilder comDataVenda(OffsetDateTime dataVenda) { this.dataVenda = dataVenda; return this; }
         public VendaBuilder comJustificativa(String justificativa) { this.justificativaCancelamento = justificativa; return this; }
         public VendaBuilder comDataCancelamento(OffsetDateTime dataCancelamento) { this.dataCancelamento = dataCancelamento; return this; }
+        public VendaBuilder comCaixa(Caixa caixa) { this.caixa = caixa; return this; }
 
         public Venda build() {
             BigDecimal totalFinal = totalFinalExplicito != null
@@ -135,6 +140,7 @@ public final class VendaTestFixtures {
                     .dataVenda(dataVenda)
                     .justificativaCancelamento(justificativaCancelamento)
                     .dataCancelamento(dataCancelamento)
+                    .caixa(caixa)
                     .build();
         }
     }

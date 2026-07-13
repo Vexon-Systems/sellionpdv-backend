@@ -21,6 +21,7 @@ import vexon.sellionpdv.config.GlobalExceptionHandler;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -170,17 +171,28 @@ class CaixaControllerTest {
         @DisplayName("CC8 — deve_Retornar201_SemBody_quando_MovimentacaoRegistrada")
         void deve_Retornar201_SemBody_quando_MovimentacaoRegistrada() throws Exception {
             mockMvc.perform(post("/api/caixa/movimentacao")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umaSangriaRequestDTO())))
                     .andExpect(status().isCreated());
 
-            verify(service).registrarMovimentacao(any());
+            verify(service).registrarMovimentacao(any(), any());
+        }
+
+        @Test
+        @DisplayName("CC8b — deve_Retornar400_quando_IdempotencyKeyAusente")
+        void deve_Retornar400_quando_IdempotencyKeyAusente() throws Exception {
+            mockMvc.perform(post("/api/caixa/movimentacao")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umaSangriaRequestDTO())))
+                    .andExpect(status().isBadRequest());
         }
 
         @Test
         @DisplayName("CC9 — deve_Retornar400_quando_TipoMovimentacaoNulo (@NotNull)")
         void deve_Retornar400_quando_TipoMovimentacaoNulo() throws Exception {
             mockMvc.perform(post("/api/caixa/movimentacao")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(new MovimentacaoCaixaRequestDTO(
                                     null, new BigDecimal("50.00"), "teste"))))
@@ -191,6 +203,7 @@ class CaixaControllerTest {
         @DisplayName("CC10 — deve_Retornar400_quando_ValorNegativo (@Positive)")
         void deve_Retornar400_quando_ValorNegativo() throws Exception {
             mockMvc.perform(post("/api/caixa/movimentacao")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(new MovimentacaoCaixaRequestDTO(
                                     TipoMovimentacaoCaixa.SANGRIA, new BigDecimal("-1"), "teste"))))
@@ -201,6 +214,7 @@ class CaixaControllerTest {
         @DisplayName("CC11 — deve_Retornar400_quando_MotivoEmBranco (@NotBlank)")
         void deve_Retornar400_quando_MotivoEmBranco() throws Exception {
             mockMvc.perform(post("/api/caixa/movimentacao")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(new MovimentacaoCaixaRequestDTO(
                                     TipoMovimentacaoCaixa.SANGRIA, new BigDecimal("50.00"), ""))))

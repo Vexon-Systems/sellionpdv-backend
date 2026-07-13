@@ -3,6 +3,7 @@ package vexon.sellionpdv.venda.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import vexon.sellionpdv.maquininha.BandeiraCartao;
 import vexon.sellionpdv.venda.FormaPagamento;
 
@@ -21,5 +22,6 @@ public record VendaRequestDTO(
 
         BandeiraCartao bandeiraCartao,
 
+        @PositiveOrZero(message = "O desconto não pode ser negativo")
         BigDecimal descontoAplicado
 ) {}

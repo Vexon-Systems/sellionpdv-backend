@@ -55,3 +55,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Documentos internos de seguranca (auditoria SAST/OWASP) — mantidos so localmente,
+# nunca commitados enquanto o repositorio for publico (ver docs/security/plano-implementacao.md)
+docs/security/

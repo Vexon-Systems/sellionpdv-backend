@@ -13,15 +13,16 @@ Um sistema de Frente de Caixa (PDV) moderno, escalável e seguro, focado na expe
 * TailwindCSS & shadcn/ui (Estilização e Componentes)
 
 **Backend:**
-* Java 17+
-* Spring Boot 3+ (REST API)
+* Java 21
+* Spring Boot 4.x (REST API)
 * Spring Security + JWT (Autenticação e Autorização)
 * Spring Data JPA / Hibernate (Persistência)
+* Flyway (versionamento de schema)
 * Spring Web
 * Lombok
 
 **Infraestrutura:**
-* PostgreSQL (Hospedado no Supabase)
+* PostgreSQL (Hospedado no Supabase em staging/produção; Docker local em desenvolvimento)
 
 ## Destaques Arquiteturais
 
@@ -34,18 +35,27 @@ Um sistema de Frente de Caixa (PDV) moderno, escalável e seguro, focado na expe
 
 ### Pré-requisitos
 * Node.js (v18+)
-* Java 17+ e Maven
-* Banco de Dados PostgreSQL configurado
+* Java 21
+* Docker Desktop (banco de dados local — nenhum acesso a Supabase é necessário para desenvolver)
 
 ### 1. Configurando e Rodando o Backend
-1. Navegue até o diretório do backend.
-2. Configure as variáveis de ambiente necessárias no arquivo `application.properties` ou `.env` (URL do banco, chaves do Supabase, Secret do JWT).
-3. Instale as dependências e compile o projeto:
+
+**Nunca aponte o ambiente local para o banco de staging ou produção.** O setup abaixo sobe um Postgres isolado, só seu, via Docker — sem precisar de conta ou projeto Supabase.
+
+1. Suba o banco local (na raiz do repositório, precisa do Docker Desktop aberto):
     ```bash
-    mvn clean install
-4. Inicie o servidor:
+    docker compose up -d
+    ```
+2. Copie o arquivo de exemplo de configuração e ajuste se necessário (os valores padrão já batem com o `docker-compose.yml`, então normalmente não precisa mudar nada):
     ```bash
-    mvn spring-boot:run
+    cp src/main/resources/application-secret.example.properties src/main/resources/application-secret.properties
+    ```
+3. Inicie o servidor (o Flyway cria o schema automaticamente na primeira vez, e um usuário de teste é semeado: `admin@sellion.com.br` / `admin123`):
+    ```bash
+    ./mvnw spring-boot:run
+    ```
+
+Se `docker compose up -d` não for executado antes, o backend falha ao conectar no banco — isso é esperado, não é bug: suba o container primeiro.
 
 ### 2. Configurando e Rodando o Frontend
 1. Navegue até o diretório do frontend

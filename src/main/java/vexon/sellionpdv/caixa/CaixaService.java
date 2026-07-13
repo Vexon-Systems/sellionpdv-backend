@@ -1,6 +1,7 @@
 package vexon.sellionpdv.caixa;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
@@ -18,6 +19,7 @@ import vexon.sellionpdv.venda.Venda;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -64,11 +66,20 @@ public class CaixaService {
                 .operadorAbertura(usuarioLogado)
                 .build();
 
-        return caixaRepository.save(caixa);
+        try {
+            return caixaRepository.saveAndFlush(caixa);
+        } catch (DataIntegrityViolationException e) {
+            // Corrida perdida: outra requisição abriu o caixa entre a checagem acima e o
+            // commit (índice único idx_unico_caixa_aberto barra o segundo INSERT) — SAST-18.
+            throw new BusinessException("Já existe um caixa aberto.");
+        }
     }
 
     @Transactional
-    public void registrarMovimentacao(MovimentacaoCaixaRequestDTO dto) {
+    public void registrarMovimentacao(MovimentacaoCaixaRequestDTO dto, UUID idempotencyKey) {
+        movimentacaoRepository.findByIdempotencyKey(idempotencyKey)
+                .ifPresent(m -> { throw new BusinessException("Movimentação já registrada com esta chave."); });
+
         Caixa caixa = buscarCaixaAtual();
 
         MovimentacaoCaixa movimentacao = MovimentacaoCaixa.builder()
@@ -78,6 +89,7 @@ public class CaixaService {
                 .valor(dto.valor())
                 .motivo(dto.motivo())
                 .dataMovimentacao(OffsetDateTime.now())
+                .idempotencyKey(idempotencyKey)
                 .build();
 
         movimentacaoRepository.save(movimentacao);

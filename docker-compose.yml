@@ -1,0 +1,16 @@
+services:
+  postgres-dev:
+    image: postgres:17-alpine
+    container_name: sellionpdv-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sellionpdv
+      POSTGRES_PASSWORD: sellionpdv_dev_local
+      POSTGRES_DB: sellionpdv_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - sellionpdv_dev_data:/var/lib/postgresql/data
+
+volumes:
+  sellionpdv_dev_data:

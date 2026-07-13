@@ -6,12 +6,18 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 public interface MovimentacaoCaixaRepository
         extends JpaRepository<MovimentacaoCaixa, Long> {
 
     List<MovimentacaoCaixa> findByCaixa(
             Caixa caixa
+    );
+
+    Optional<MovimentacaoCaixa> findByIdempotencyKey(
+            UUID idempotencyKey
     );
 
     @Query("SELECT m.tipo, SUM(m.valor) " +
