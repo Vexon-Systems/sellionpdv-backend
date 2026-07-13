@@ -115,8 +115,11 @@ public class UsuarioService {
         if (extensao == null) throw new BusinessException("Tipo de arquivo não permitido. Envie uma imagem JPEG, PNG ou WebP.");
 
         try {
+            byte[] conteudo = file.getBytes();
+            validarConteudoReal(conteudo, file.getContentType());
+
             String nomeArquivo = UUID.randomUUID() + extensao;
-            String avatarUrl = imagemStorage.salvar(file.getBytes(), nomeArquivo, file.getContentType());
+            String avatarUrl = imagemStorage.salvar(conteudo, nomeArquivo, file.getContentType());
 
             usuario.setAvatarUrl(avatarUrl);
             usuarioRepository.save(usuario);
@@ -125,6 +128,31 @@ public class UsuarioService {
         } catch (IOException e) {
             throw new BusinessException("Erro ao ler o arquivo enviado.");
         }
+    }
+
+    // SAST-09: o Content-Type do multipart é informado pelo próprio cliente e pode ser
+    // forjado — confere os magic bytes reais do arquivo antes de aceitar o upload.
+    private void validarConteudoReal(byte[] conteudo, String contentTypeDeclarado) {
+        boolean valido = switch (contentTypeDeclarado) {
+            case "image/jpeg" -> temPrefixo(conteudo, 0xFF, 0xD8, 0xFF);
+            case "image/png" -> temPrefixo(conteudo, 0x89, 0x50, 0x4E, 0x47);
+            case "image/webp" -> conteudo.length >= 12
+                    && temPrefixo(conteudo, 'R', 'I', 'F', 'F')
+                    && conteudo[8] == 'W' && conteudo[9] == 'E' && conteudo[10] == 'B' && conteudo[11] == 'P';
+            default -> false;
+        };
+
+        if (!valido) {
+            throw new BusinessException("O conteúdo do arquivo não corresponde ao tipo declarado.");
+        }
+    }
+
+    private boolean temPrefixo(byte[] conteudo, int... esperado) {
+        if (conteudo.length < esperado.length) return false;
+        for (int i = 0; i < esperado.length; i++) {
+            if (conteudo[i] != (byte) esperado[i]) return false;
+        }
+        return true;
     }
 
     private UsuarioMeResponseDTO mapearParaDTO(Usuario usuario) {

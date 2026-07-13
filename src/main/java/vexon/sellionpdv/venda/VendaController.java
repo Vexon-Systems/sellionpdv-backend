@@ -42,9 +42,10 @@ public class VendaController {
     @PostMapping("/{id}/cancelar")
     public ResponseEntity<Void> cancelarVenda(
             @PathVariable Long id,
-            @RequestBody @Valid CancelamentoVendaRequestDTO dto
+            @RequestBody @Valid CancelamentoVendaRequestDTO dto,
+            @AuthenticationPrincipal UserDetails userDetails
     ) {
-        vendaService.cancelarVenda(id, dto);
+        vendaService.cancelarVenda(id, dto, userDetails.getUsername());
         return ResponseEntity.ok().build();
     }
 

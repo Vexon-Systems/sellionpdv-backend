@@ -62,6 +62,10 @@ public class Venda {
     @Column(name = "data_cancelamento")
     private OffsetDateTime dataCancelamento;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_cancelamento_id")
+    private Usuario usuarioCancelamento;
+
     @Column(nullable = false)
     private BigDecimal subtotal;
 

@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
@@ -68,6 +69,14 @@ public class GlobalExceptionHandler {
                 "Você não tem permissão para executar esta ação.");
         detail.setTitle("Acesso negado");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(detail);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ProblemDetail> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                HttpStatus.PAYLOAD_TOO_LARGE, "Arquivo excede o tamanho máximo permitido de 5 MB.");
+        detail.setTitle("Arquivo muito grande");
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(detail);
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)

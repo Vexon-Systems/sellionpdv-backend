@@ -39,6 +39,37 @@ class TokenServiceTest {
         usuario = AuthTestFixtures.umUsuario(tenant);
     }
 
+    // ─── validarSecret (SAST-28) ─────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("validarSecret")
+    class ValidarSecret {
+
+        @Test
+        @DisplayName("Não deve lançar exceção quando o secret tem 32 bytes ou mais")
+        void naoDeveLancarExcecao_quando_SecretTemTamanhoValido() {
+            assertDoesNotThrow(() -> tokenService.validarSecret());
+        }
+
+        @Test
+        @DisplayName("Deve lançar IllegalStateException quando o secret é mais curto que 32 bytes")
+        void deveLancarIllegalStateException_quando_SecretCurto() {
+            ReflectionTestUtils.setField(tokenService, "secret", "curto-demais");
+
+            IllegalStateException ex = assertThrows(IllegalStateException.class,
+                    () -> tokenService.validarSecret());
+            assertTrue(ex.getMessage().contains("JWT_SECRET"));
+        }
+
+        @Test
+        @DisplayName("Deve lançar IllegalStateException quando o secret é nulo")
+        void deveLancarIllegalStateException_quando_SecretNulo() {
+            ReflectionTestUtils.setField(tokenService, "secret", null);
+
+            assertThrows(IllegalStateException.class, () -> tokenService.validarSecret());
+        }
+    }
+
     // ─── gerarToken ──────────────────────────────────────────────────────────────
 
     @Nested

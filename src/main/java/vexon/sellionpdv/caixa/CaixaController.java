@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.caixa.dto.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/caixa")
@@ -34,8 +35,10 @@ public class CaixaController {
     }
 
     @PostMapping("/movimentacao")
-    public ResponseEntity<Void> registrarMovimentacao(@RequestBody @Valid MovimentacaoCaixaRequestDTO dto) {
-        service.registrarMovimentacao(dto);
+    public ResponseEntity<Void> registrarMovimentacao(
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @RequestBody @Valid MovimentacaoCaixaRequestDTO dto) {
+        service.registrarMovimentacao(dto, idempotencyKey);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

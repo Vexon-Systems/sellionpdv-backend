@@ -664,7 +664,9 @@ class ProdutoServiceTest {
             ReflectionTestUtils.setField(produtoService, "maxSizeBytes", 5_242_880L);
 
             MultipartFile file = mock(MultipartFile.class);
-            byte[] conteudo = "conteudo-fake".getBytes();
+            // Magic bytes reais de PNG (89 50 4E 47) — necessário desde o SAST-09
+            // (validarConteudoReal), que rejeita conteúdo que não bate com o Content-Type.
+            byte[] conteudo = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
             when(file.isEmpty()).thenReturn(false);
             when(file.getSize()).thenReturn(1024L);
             when(file.getContentType()).thenReturn("image/png");
@@ -692,6 +694,21 @@ class ProdutoServiceTest {
             when(file.getSize()).thenReturn(1024L);
             when(file.getContentType()).thenReturn("image/jpeg");
             when(file.getBytes()).thenThrow(new IOException("stream fechado"));
+
+            assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
+            verifyNoInteractions(imagemStorage);
+        }
+
+        @Test
+        @DisplayName("SAST-09 — deve lançar BusinessException quando o conteúdo real não bate com o Content-Type declarado")
+        void deve_LancarBusinessException_quando_ConteudoNaoBateComContentType() throws IOException {
+            ReflectionTestUtils.setField(produtoService, "maxSizeBytes", 5_242_880L);
+
+            MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getSize()).thenReturn(1024L);
+            when(file.getContentType()).thenReturn("image/png");
+            when(file.getBytes()).thenReturn("nao-e-uma-imagem-de-verdade".getBytes());
 
             assertThrows(BusinessException.class, () -> produtoService.uploadImagem(file));
             verifyNoInteractions(imagemStorage);
