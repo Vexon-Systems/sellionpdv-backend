@@ -47,7 +47,8 @@ public class RelatorioService {
                 v.getTotalFinal(),
                 v.getFormaPagamento().name(),
                 v.getStatus().name(),
-                v.getCaixa().getOperadorAbertura().getNome()
+                v.getCaixa().getOperadorAbertura().getNome(),
+                v.getMotivoDesconto()
         ));
     }
 

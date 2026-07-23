@@ -4,10 +4,12 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.relatorio.pdf.ReciboVendaPdfService;
 import vexon.sellionpdv.venda.dto.*;
@@ -24,11 +26,15 @@ public class VendaController {
     private final ReciboVendaPdfService reciboVendaPdfService;
 
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<VendaResponseDTO>> listarVendas() {
-        return ResponseEntity.ok(vendaService.listarVendasCaixaAtual());
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(vendaService.listarVendasCaixaAtual());
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<VendaResponseDTO> registrarVenda(
             @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @RequestBody @Valid VendaRequestDTO dto,
@@ -40,6 +46,7 @@ public class VendaController {
     }
 
     @PostMapping("/{id}/cancelar")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR')")
     public ResponseEntity<Void> cancelarVenda(
             @PathVariable Long id,
             @RequestBody @Valid CancelamentoVendaRequestDTO dto,

@@ -9,14 +9,21 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import vexon.sellionpdv.config.GlobalExceptionHandler;
 import vexon.sellionpdv.relatorio.pdf.CaixasPdfService;
 import vexon.sellionpdv.relatorio.pdf.DrePdfService;
 import vexon.sellionpdv.relatorio.pdf.HistoricoVendasPdfService;
+import vexon.sellionpdv.relatorio.dto.RelatorioVendaDTO;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -24,6 +31,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -48,7 +56,27 @@ class RelatorioControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setCustomArgumentResolvers(new PageableHandlerMethodArgumentResolver())
                 .build();
+    }
+
+    @Test
+    @DisplayName("SEL-SEC-003 — relatório administrativo expõe motivo do desconto")
+    void deve_ExporMotivoDesconto_noRelatorioAdministrativo() throws Exception {
+        var venda = new RelatorioVendaDTO(
+                1L,
+                Instant.parse("2026-07-22T16:00:00Z"),
+                new BigDecimal("90.00"),
+                "DINHEIRO",
+                "CONCLUIDA",
+                "Administrador",
+                "Autorização gerencial");
+        when(relatorioService.listarVendas(isNull(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new PageImpl<>(List.of(venda), PageRequest.of(0, 20), 1));
+
+        mockMvc.perform(get("/api/relatorios/vendas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].motivoDesconto").value("Autorização gerencial"));
     }
 
     @Nested

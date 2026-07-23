@@ -12,7 +12,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.support.StaticApplicationContext;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
@@ -20,17 +22,22 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.CodedHttpException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.config.GlobalExceptionHandler;
 import vexon.sellionpdv.relatorio.pdf.ReciboVendaPdfService;
 import vexon.sellionpdv.venda.dto.ItemVendaRequestDTO;
+import vexon.sellionpdv.venda.dto.CancelamentoVendaRequestDTO;
 import vexon.sellionpdv.venda.dto.VendaRequestDTO;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -45,8 +52,7 @@ import static vexon.sellionpdv.venda.VendaTestFixtures.*;
  * - Cenário 7: pedido original era 409 Conflict. GlobalExceptionHandler mapeia
  *   BusinessException para 422 UNPROCESSABLE_ENTITY — implementado com o status correto.
  * - VendaResponseDTO não tem campo "token"; o campo correto é "idempotencyKey".
- * - Cenários 1 (desconto > subtotal): VendaService não valida — salva com totalFinal
- *   negativo. Adicionar validação no service antes de escrever esse teste.
+ * - SEL-SEC-003 passou a validar desconto e motivo no backend antes da persistência.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("VendaController")
@@ -119,7 +125,8 @@ class VendaControllerTest {
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$.status").value("CONCLUIDA"))
                     .andExpect(jsonPath("$.id").value(1))
-                    .andExpect(jsonPath("$.formaPagamento").value("DINHEIRO"));
+                    .andExpect(jsonPath("$.formaPagamento").value("DINHEIRO"))
+                    .andExpect(jsonPath("$.motivoDesconto").doesNotExist());
         }
     }
 
@@ -173,6 +180,57 @@ class VendaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umaVendaRequestDTOValida())))
                     .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-003 — deve retornar 422 e código estável acima da alçada")
+        void deve_Retornar422ComCodigo_quando_DescontoAcimaDaAlcada() throws Exception {
+            UUID key = UUID.randomUUID();
+            when(vendaService.registrarVenda(any(), any(), any())).thenThrow(new CodedHttpException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "DESCONTO_ACIMA_DA_ALCADA",
+                    "O desconto informado excede a alçada do usuário."));
+
+            mockMvc.perform(post("/api/vendas")
+                            .header("Idempotency-Key", key.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umaVendaRequestDTOValida())))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("DESCONTO_ACIMA_DA_ALCADA"));
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-003 — deve retornar 403 e código estável sem alçada")
+        void deve_Retornar403ComCodigo_quando_DescontoNaoAutorizado() throws Exception {
+            UUID key = UUID.randomUUID();
+            when(vendaService.registrarVenda(any(), any(), any())).thenThrow(new CodedHttpException(
+                    HttpStatus.FORBIDDEN,
+                    "DESCONTO_NAO_AUTORIZADO",
+                    "O usuário não possui permissão para conceder desconto."));
+
+            mockMvc.perform(post("/api/vendas")
+                            .header("Idempotency-Key", key.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umaVendaRequestDTOValida())))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.code").value("DESCONTO_NAO_AUTORIZADO"));
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-004 — deve retornar 422 e código estável para matriz incoerente")
+        void deve_Retornar422ComCodigo_quando_MatrizPagamentoInvalida() throws Exception {
+            UUID key = UUID.randomUUID();
+            when(vendaService.registrarVenda(any(), any(), any())).thenThrow(new CodedHttpException(
+                    HttpStatus.UNPROCESSABLE_ENTITY,
+                    "MATRIZ_PAGAMENTO_INVALIDA",
+                    "A combinação entre forma de pagamento, maquininha e bandeira é inválida."));
+
+            mockMvc.perform(post("/api/vendas")
+                            .header("Idempotency-Key", key.toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umaVendaRequestDTOValida())))
+                    .andExpect(status().isUnprocessableEntity())
+                    .andExpect(jsonPath("$.code").value("MATRIZ_PAGAMENTO_INVALIDA"));
         }
     }
 
@@ -291,6 +349,151 @@ class VendaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{ json inválido }"))
                     .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-003 — deve rejeitar desconto com mais de duas casas")
+        void deve_Retornar400ComCodigo_quando_DescontoTemEscalaInvalida() throws Exception {
+            VendaRequestDTO dtoInvalido = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("10.000"), "Motivo"
+            );
+
+            mockMvc.perform(post("/api/vendas")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(dtoInvalido)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDACAO_INVALIDA"));
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-003 — deve rejeitar motivo acima de 500 caracteres")
+        void deve_Retornar400ComCodigo_quando_MotivoExcedeLimite() throws Exception {
+            VendaRequestDTO dtoInvalido = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("1.00"), "x".repeat(501)
+            );
+
+            mockMvc.perform(post("/api/vendas")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(dtoInvalido)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDACAO_INVALIDA"));
+        }
+    }
+
+    // ─── POST /api/vendas/{id}/cancelar ─────────────────────────────────────────
+
+    @Nested
+    @DisplayName("POST /api/vendas/{id}/cancelar")
+    class CancelarVenda {
+
+        @Test
+        @DisplayName("Deve retornar 200 e encaminhar o usuário autenticado")
+        void deve_Retornar200_quando_CancelamentoAceito() throws Exception {
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"Cliente desistiu\"}"))
+                    .andExpect(status().isOk());
+
+            verify(vendaService).cancelarVenda(eq(1L), any(CancelamentoVendaRequestDTO.class),
+                    eq("operador@test.com"));
+        }
+
+        @Test
+        @DisplayName("Deve retornar 400 para justificativa vazia")
+        void deve_Retornar400_quando_JustificativaVazia() throws Exception {
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"   \"}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Deve retornar 400 para justificativa nula")
+        void deve_Retornar400_quando_JustificativaNula() throws Exception {
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":null}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Deve retornar 400 para justificativa vazia sem espaços")
+        void deve_Retornar400_quando_JustificativaEhStringVazia() throws Exception {
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"\"}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Deve retornar 400 para justificativa acima de 500 caracteres")
+        void deve_Retornar400_quando_JustificativaExcedeLimite() throws Exception {
+            String justificativa = "x".repeat(501);
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new CancelamentoVendaRequestDTO(justificativa))))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Deve ignorar campos de identidade e horário injetados no body")
+        void deve_UsarIdentidadeAutenticada_quando_BodyTentaAdulterarContexto() throws Exception {
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                      "justificativa": "Tentativa controlada",
+                                      "tenantId": 999,
+                                      "usuarioId": 999,
+                                      "papel": "ROLE_ADMIN",
+                                      "dataVenda": "2026-07-22T16:00:00Z"
+                                    }
+                                    """))
+                    .andExpect(status().isOk());
+
+            verify(vendaService).cancelarVenda(eq(1L), any(CancelamentoVendaRequestDTO.class),
+                    eq("operador@test.com"));
+        }
+
+        @Test
+        @DisplayName("Deve retornar 403 quando a autoria ou papel não autoriza")
+        void deve_Retornar403_quando_AcessoNegado() throws Exception {
+            doThrow(new AccessDeniedException("Sem permissão"))
+                    .when(vendaService).cancelarVenda(eq(1L), any(), eq("operador@test.com"));
+
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"Tentativa\"}"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("Deve retornar 404 sem diferenciar venda ausente ou cross-tenant")
+        void deve_Retornar404_quando_VendaNaoEncontrada() throws Exception {
+            doThrow(new ResourceNotFoundException("Venda não encontrada."))
+                    .when(vendaService).cancelarVenda(eq(99L), any(), eq("operador@test.com"));
+
+            mockMvc.perform(post("/api/vendas/99/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"Tentativa\"}"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.detail").value("Venda não encontrada."));
+        }
+
+        @Test
+        @DisplayName("Deve retornar 422 quando a janela ou estado impede cancelamento")
+        void deve_Retornar422_quando_RegraDeNegocioRejeita() throws Exception {
+            doThrow(new BusinessException("O prazo de 10 minutos para cancelamento da venda foi excedido."))
+                    .when(vendaService).cancelarVenda(eq(1L), any(), eq("operador@test.com"));
+
+            mockMvc.perform(post("/api/vendas/1/cancelar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"justificativa\":\"Tarde\"}"))
+                    .andExpect(status().isUnprocessableEntity());
         }
     }
 

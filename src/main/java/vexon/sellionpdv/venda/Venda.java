@@ -72,6 +72,9 @@ public class Venda {
     @Column(name = "desconto_aplicado")
     private BigDecimal descontoAplicado;
 
+    @Column(name = "motivo_desconto", length = 500)
+    private String motivoDesconto;
+
     @Column(name = "total_final", nullable = false)
     private BigDecimal totalFinal;
 

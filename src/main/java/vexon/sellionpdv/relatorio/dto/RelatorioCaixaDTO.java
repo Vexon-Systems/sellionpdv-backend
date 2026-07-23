@@ -38,13 +38,42 @@ public record RelatorioCaixaDTO(
                 operadorFechamento,
                 dataAbertura,
                 dataFechamento,
+                saldoInicial,
+                totalVendasRaw,
+                totalVendasRaw,
+                totalSangriasRaw,
+                totalReforcosRaw,
+                saldoFinalInformado);
+    }
+
+    public RelatorioCaixaDTO(
+            Long caixaId,
+            String status,
+            String operadorAbertura,
+            String operadorFechamento,
+            OffsetDateTime dataAbertura,
+            OffsetDateTime dataFechamento,
+            BigDecimal saldoInicial,
+            BigDecimal totalVendasRaw,
+            BigDecimal totalVendasDinheiroRaw,
+            BigDecimal totalSangriasRaw,
+            BigDecimal totalReforcosRaw,
+            BigDecimal saldoFinalInformado
+    ) {
+        this(
+                caixaId,
+                status,
+                operadorAbertura,
+                operadorFechamento,
+                dataAbertura,
+                dataFechamento,
                 tratarNulo(saldoInicial),
                 tratarNulo(totalVendasRaw),
                 tratarNulo(totalSangriasRaw),
                 tratarNulo(totalReforcosRaw),
-                calcularSaldoFinal(saldoInicial, totalVendasRaw, totalReforcosRaw, totalSangriasRaw),
+                calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw),
                 tratarNulo(saldoFinalInformado),
-                calcularFuro(saldoFinalInformado, calcularSaldoFinal(saldoInicial, totalVendasRaw, totalReforcosRaw, totalSangriasRaw), status)
+                calcularFuro(saldoFinalInformado, calcularSaldoFinal(saldoInicial, totalVendasDinheiroRaw, totalReforcosRaw, totalSangriasRaw), status)
         );
     }
 

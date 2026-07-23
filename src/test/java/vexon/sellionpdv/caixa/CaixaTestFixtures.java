@@ -91,10 +91,14 @@ public final class CaixaTestFixtures {
     }
 
     public static Venda umaVendaCancelada(BigDecimal totalFinal) {
+        return umaVendaCancelada(FormaPagamento.DINHEIRO, totalFinal);
+    }
+
+    public static Venda umaVendaCancelada(FormaPagamento formaPagamento, BigDecimal totalFinal) {
         return Venda.builder()
                 .id(2L)
                 .status(StatusVenda.CANCELADA)
-                .formaPagamento(FormaPagamento.DINHEIRO)
+                .formaPagamento(formaPagamento)
                 .totalFinal(totalFinal)
                 .subtotal(totalFinal)
                 .descontoAplicado(BigDecimal.ZERO)
@@ -132,7 +136,7 @@ public final class CaixaTestFixtures {
     }
 
     // Fixture com valores aritmeticamente consistentes:
-    // saldoEsperado = saldoInicial(100) + totalTodasVendas(200) + reforcos(0) - sangrias(0) = 300
+    // saldoEsperado = saldoInicial(100) + totalVendasDinheiro(200) + reforcos(0) - sangrias(0) = 300
     // totalVendasDinheiro = 200 (todas as vendas concluídas são DINHEIRO neste cenário)
     // furoCaixa = saldoInformado(300) - saldoEsperado(300) = 0
     public static CaixaFechamentoResponseDTO umaCaixaFechamentoResponseDTO() {

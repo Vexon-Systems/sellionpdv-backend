@@ -22,6 +22,8 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
             UUID idempotencyKey
     );
 
+    Optional<Venda> findByIdAndTenantId(Long id, Long tenantId);
+
     // Busca os KPIs Totais
     @Query("SELECT SUM(v.totalFinal), COUNT(v.id) " +
             "FROM Venda v " +

@@ -18,6 +18,8 @@ import vexon.sellionpdv.venda.Venda;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,14 +27,68 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CaixaService {
 
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
+
     private final CaixaRepository caixaRepository;
     private final MovimentacaoCaixaRepository movimentacaoRepository;
     private final TenantRepository tenantRepository;
     private final UsuarioContextService usuarioContextService;
+    private final CalculadoraSaldoFisico calculadoraSaldoFisico;
 
     public Caixa buscarCaixaAtual() {
         return caixaRepository.findByStatus(StatusCaixa.ABERTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Nenhum caixa aberto encontrado para o tenant atual."));
+    }
+
+    @Transactional(readOnly = true)
+    public CaixaOperacionalResponseDTO buscarVisaoOperacional() {
+        Usuario usuario = usuarioContextService.getUsuarioAutenticado();
+        boolean visaoAdministrativa = ROLE_ADMIN.equals(usuario.getRole());
+
+        return caixaRepository.findByStatus(StatusCaixa.ABERTO)
+                .map(caixa -> criarVisaoOperacional(caixa, visaoAdministrativa))
+                .orElseGet(() -> CaixaOperacionalResponseDTO.semCaixaAberto(visaoAdministrativa));
+    }
+
+    private CaixaOperacionalResponseDTO criarVisaoOperacional(Caixa caixa, boolean visaoAdministrativa) {
+        List<EventoCaixaOperacionalResponseDTO> eventos = new ArrayList<>();
+
+        eventos.add(new EventoCaixaOperacionalResponseDTO(
+                "abertura-" + caixa.getId(),
+                "ABERTURA",
+                caixa.getStatus().name(),
+                "Abertura de caixa",
+                caixa.getDataAbertura()));
+
+        List<Venda> vendas = caixa.getVendas() != null ? caixa.getVendas() : List.of();
+        vendas.forEach(venda -> eventos.add(new EventoCaixaOperacionalResponseDTO(
+                "venda-" + venda.getId(),
+                "VENDA",
+                venda.getStatus().name(),
+                "Venda #" + venda.getId(),
+                venda.getDataVenda())));
+
+        movimentacaoRepository.findByCaixa(caixa).forEach(movimentacao ->
+                eventos.add(new EventoCaixaOperacionalResponseDTO(
+                        "movimentacao-" + movimentacao.getId(),
+                        movimentacao.getTipo().name(),
+                        "REGISTRADA",
+                        movimentacao.getMotivo(),
+                        movimentacao.getDataMovimentacao())));
+
+        eventos.sort(Comparator.comparing(
+                EventoCaixaOperacionalResponseDTO::dataEvento,
+                Comparator.nullsLast(Comparator.reverseOrder())));
+
+        return new CaixaOperacionalResponseDTO(
+                true,
+                visaoAdministrativa,
+                caixa.getId(),
+                caixa.getStatus(),
+                caixa.getDataAbertura(),
+                caixa.getOperadorAbertura() != null ? caixa.getOperadorAbertura().getId() : null,
+                caixa.getOperadorAbertura() != null ? caixa.getOperadorAbertura().getNome() : null,
+                List.copyOf(eventos));
     }
 
     @Transactional(readOnly = true)
@@ -122,16 +178,14 @@ public class CaixaService {
                 .map(Venda::getTotalFinal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalTodasVendas = vendasConcluidas.stream()
-                .map(Venda::getTotalFinal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal saldoEsperado = caixa.getSaldoInicial()
-                .add(totalTodasVendas)
-                .add(totalReforcos)
-                .subtract(totalSangrias);
-
-        BigDecimal furoCaixa = dto.saldoFinalInformado().subtract(saldoEsperado);
+        CalculadoraSaldoFisico.Resultado resultado = calculadoraSaldoFisico.calcular(
+                caixa.getSaldoInicial(),
+                totalVendasDinheiro,
+                totalReforcos,
+                totalSangrias,
+                dto.saldoFinalInformado());
+        BigDecimal saldoEsperado = resultado.saldoEsperado();
+        BigDecimal furoCaixa = resultado.furoCaixa();
 
         caixa.setSaldoFinalInformado(dto.saldoFinalInformado());
         caixa.setFuroCaixa(furoCaixa);
