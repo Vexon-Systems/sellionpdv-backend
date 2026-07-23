@@ -64,6 +64,7 @@ class RelatorioServiceTest {
         @DisplayName("RS1 — Deve retornar página mapeada com todos os campos de RelatorioVendaDTO quando status é nulo")
         void deve_RetornarPaginaDeRelatorioVendaDTO_quando_StatusNulo() {
             Venda venda = umaVendaConcluida(new BigDecimal("100.00"), FormaPagamento.DINHEIRO);
+            venda.setMotivoDesconto("Autorização gerencial");
             when(vendaRepository.buscarRelatorioVendas(any(), any()))
                     .thenReturn(new PageImpl<>(List.of(venda)));
 
@@ -77,6 +78,7 @@ class RelatorioServiceTest {
             assertEquals("DINHEIRO", dto.formaPagamento());
             assertEquals("CONCLUIDA", dto.status());
             assertEquals("Operador Teste", dto.nomeOperador());
+            assertEquals("Autorização gerencial", dto.motivoDesconto());
         }
 
         @Test

@@ -9,8 +9,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import vexon.sellionpdv.caixa.dto.CaixaFechamentoResponseDTO;
+import vexon.sellionpdv.caixa.dto.CaixaOperacionalResponseDTO;
 import vexon.sellionpdv.caixa.dto.MovimentacaoCaixaRequestDTO;
 import vexon.sellionpdv.caixa.dto.MovimentacaoCaixaResponseDTO;
 import vexon.sellionpdv.common.exception.BusinessException;
@@ -41,6 +43,7 @@ class CaixaServiceTest {
     @Mock private MovimentacaoCaixaRepository movimentacaoRepository;
     @Mock private TenantRepository tenantRepository;
     @Mock private UsuarioContextService usuarioContextService;
+    @Spy private CalculadoraSaldoFisico calculadoraSaldoFisico = new CalculadoraSaldoFisico();
 
     @InjectMocks private CaixaService caixaService;
 
@@ -65,6 +68,70 @@ class CaixaServiceTest {
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.empty());
 
             assertThrows(ResourceNotFoundException.class, () -> caixaService.buscarCaixaAtual());
+        }
+    }
+
+    @Nested
+    @DisplayName("SEL-SEC-008 — buscarVisaoOperacional")
+    class BuscarVisaoOperacional {
+
+        @Test
+        @DisplayName("operador recebe eventos sem qualquer campo monetário")
+        void deve_RetornarVisaoSemValores_quando_Operador() {
+            Tenant tenant = umTenant();
+            Usuario operador = Usuario.builder()
+                    .id(2L)
+                    .tenant(tenant)
+                    .nome("Operador")
+                    .email("operador@test.com")
+                    .senhaHash("hash")
+                    .role("ROLE_OPERADOR")
+                    .build();
+            Caixa caixa = umCaixa()
+                    .comTenant(tenant)
+                    .comOperador(operador)
+                    .comVendas(List.of(
+                            umaVendaConcluida(FormaPagamento.DINHEIRO, new BigDecimal("80.00")),
+                            umaVendaConcluida(FormaPagamento.PIX, new BigDecimal("120.00"))))
+                    .build();
+
+            when(usuarioContextService.getUsuarioAutenticado()).thenReturn(operador);
+            when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.of(caixa));
+            when(movimentacaoRepository.findByCaixa(caixa))
+                    .thenReturn(List.of(umaSangria(caixa, new BigDecimal("50.00"))));
+
+            CaixaOperacionalResponseDTO resultado = caixaService.buscarVisaoOperacional();
+
+            assertTrue(resultado.caixaAberto());
+            assertFalse(resultado.visaoAdministrativa());
+            assertEquals(4, resultado.eventos().size());
+            assertTrue(resultado.eventos().stream().anyMatch(e -> e.tipo().equals("VENDA")));
+            assertTrue(resultado.eventos().stream().anyMatch(e -> e.tipo().equals("SANGRIA")));
+            assertArrayEquals(
+                    new String[]{"id", "tipo", "status", "descricao", "dataEvento"},
+                    java.util.Arrays.stream(resultado.eventos().getFirst().getClass().getRecordComponents())
+                            .map(java.lang.reflect.RecordComponent::getName)
+                            .toArray(String[]::new));
+        }
+
+        @Test
+        @DisplayName("papel atual do banco define a autorização administrativa")
+        void deve_UsarRolePersistida() {
+            Tenant tenant = umTenant();
+            Usuario usuario = umOperador(tenant);
+            usuario.setRole("ROLE_OPERADOR");
+            when(usuarioContextService.getUsuarioAutenticado()).thenReturn(usuario);
+            when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.empty());
+
+            CaixaOperacionalResponseDTO comoOperador = caixaService.buscarVisaoOperacional();
+
+            usuario.setRole("ROLE_ADMIN");
+            CaixaOperacionalResponseDTO comoAdmin = caixaService.buscarVisaoOperacional();
+
+            assertFalse(comoOperador.visaoAdministrativa());
+            assertTrue(comoAdmin.visaoAdministrativa());
+            assertFalse(comoOperador.caixaAberto());
+            assertTrue(comoOperador.eventos().isEmpty());
         }
     }
 
@@ -368,7 +435,7 @@ class CaixaServiceTest {
         @Test
         @DisplayName("C15 — deve ignorar vendas CANCELADAS no cálculo do saldoEsperado")
         void deve_IgnorarVendasCanceladas_no_CalculoDoSaldoEsperado() {
-            // CONCLUÍDA=50 + CANCELADA=200 → totalTodasVendas = 50 apenas
+            // CONCLUÍDA=50 + CANCELADA=200 → totalVendasDinheiro = 50 apenas
             // saldoEsperado = 100 + 50 = 150 | furo = 0
             Caixa caixa = umCaixa()
                     .comSaldoInicial(new BigDecimal("100.00"))
@@ -401,32 +468,68 @@ class CaixaServiceTest {
             configurarCaixa(caixa, List.of());
 
             CaixaFechamentoResponseDTO r =
-                    caixaService.fecharCaixa(umCaixaFechamentoRequestDTO(new BigDecimal("300.00")));
+                    caixaService.fecharCaixa(umCaixaFechamentoRequestDTO(new BigDecimal("180.00")));
 
             assertEquals(0, new BigDecimal("80.00").compareTo(r.totalVendasDinheiro()),
                     "totalVendasDinheiro deve ser 80 — PIX não entra neste campo");
+            assertEquals(0, new BigDecimal("180.00").compareTo(r.saldoEsperado()));
+            assertEquals(0, BigDecimal.ZERO.compareTo(r.furoCaixa()));
         }
 
         @Test
-        @DisplayName("C17 — vendas PIX devem entrar no saldoEsperado mas não em totalVendasDinheiro")
-        void deve_IncluirVendasPIX_no_SaldoEsperado_mas_NaoEm_TotalVendasDinheiro() {
-            // Mesma venda de C16: saldoEsperado = 100 + 80 + 120 = 300
+        @DisplayName("SEL-SEC-007 — PIX, crédito e débito não alteram o saldo físico esperado")
+        void deve_ExcluirMeiosEletronicos_do_SaldoEsperado() {
+            // saldoEsperado = saldoInicial(100) + dinheiro(80) = 180
             Caixa caixa = umCaixa()
                     .comSaldoInicial(new BigDecimal("100.00"))
                     .comVendas(List.of(
                             umaVendaConcluida(FormaPagamento.DINHEIRO, new BigDecimal("80.00")),
-                            umaVendaConcluida(FormaPagamento.PIX, new BigDecimal("120.00"))
+                            umaVendaConcluida(FormaPagamento.PIX, new BigDecimal("120.00")),
+                            umaVendaConcluida(FormaPagamento.CREDITO, new BigDecimal("150.00")),
+                            umaVendaConcluida(FormaPagamento.DEBITO, new BigDecimal("90.00")),
+                            umaVendaCancelada(FormaPagamento.DINHEIRO, new BigDecimal("500.00")),
+                            umaVendaCancelada(FormaPagamento.PIX, new BigDecimal("500.00")),
+                            umaVendaCancelada(FormaPagamento.CREDITO, new BigDecimal("500.00")),
+                            umaVendaCancelada(FormaPagamento.DEBITO, new BigDecimal("500.00"))
                     ))
                     .build();
             configurarCaixa(caixa, List.of());
 
             CaixaFechamentoResponseDTO r =
-                    caixaService.fecharCaixa(umCaixaFechamentoRequestDTO(new BigDecimal("300.00")));
+                    caixaService.fecharCaixa(umCaixaFechamentoRequestDTO(new BigDecimal("180.00")));
 
-            assertEquals(0, new BigDecimal("300.00").compareTo(r.saldoEsperado()),
-                    "saldoEsperado deve incluir PIX: 100 + 80 + 120 = 300");
+            assertEquals(0, new BigDecimal("180.00").compareTo(r.saldoEsperado()),
+                    "saldoEsperado deve incluir somente o dinheiro concluído");
             assertEquals(0, new BigDecimal("80.00").compareTo(r.totalVendasDinheiro()),
-                    "totalVendasDinheiro deve ser só 80 — PIX não entra");
+                    "totalVendasDinheiro deve ser somente 80");
+            assertEquals(0, BigDecimal.ZERO.compareTo(r.furoCaixa()));
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-007 — exemplo aprovado preserva centavos e sinal da falta")
+        void deve_CalcularExemploCompletoAprovado() {
+            Caixa caixa = umCaixa()
+                    .comSaldoInicial(new BigDecimal("100.00"))
+                    .comVendas(List.of(
+                            umaVendaConcluida(FormaPagamento.DINHEIRO, new BigDecimal("80.35")),
+                            umaVendaConcluida(FormaPagamento.DINHEIRO, new BigDecimal("19.65")),
+                            umaVendaConcluida(FormaPagamento.PIX, new BigDecimal("200.00")),
+                            umaVendaConcluida(FormaPagamento.CREDITO, new BigDecimal("300.00")),
+                            umaVendaConcluida(FormaPagamento.DEBITO, new BigDecimal("50.00")),
+                            umaVendaCancelada(new BigDecimal("40.00"))
+                    ))
+                    .build();
+            configurarCaixa(caixa, List.of(
+                    umReforco(caixa, new BigDecimal("25.50")),
+                    umaSangria(caixa, new BigDecimal("10.25"))
+            ));
+
+            CaixaFechamentoResponseDTO r =
+                    caixaService.fecharCaixa(umCaixaFechamentoRequestDTO(new BigDecimal("210.00")));
+
+            assertEquals(0, new BigDecimal("100.00").compareTo(r.totalVendasDinheiro()));
+            assertEquals(0, new BigDecimal("215.25").compareTo(r.saldoEsperado()));
+            assertEquals(0, new BigDecimal("-5.25").compareTo(r.furoCaixa()));
         }
 
         @Test

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import vexon.sellionpdv.common.exception.CodedHttpException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -23,6 +24,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+    @Test
+    @DisplayName("SEL-SEC-003 — deve preservar status e código interno estável")
+    void deve_PreservarStatusECodigoInterno() {
+        var ex = new CodedHttpException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "DESCONTO_ACIMA_DA_ALCADA",
+                "Desconto rejeitado");
+
+        ResponseEntity<ProblemDetail> response = handler.handleCodedHttp(ex);
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, response.getStatusCode());
+        assertEquals("DESCONTO_ACIMA_DA_ALCADA", response.getBody().getProperties().get("code"));
+    }
 
     @Nested
     @DisplayName("handleUploadTooLarge (SAST-21)")

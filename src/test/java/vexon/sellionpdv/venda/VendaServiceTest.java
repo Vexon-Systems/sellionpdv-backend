@@ -8,12 +8,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import vexon.sellionpdv.caixa.Caixa;
 import vexon.sellionpdv.caixa.CaixaService;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.common.service.UsuarioContextService;
+import vexon.sellionpdv.maquininha.BandeiraCartao;
+import vexon.sellionpdv.maquininha.Maquininha;
 import vexon.sellionpdv.maquininha.MaquininhaRepository;
 import vexon.sellionpdv.modificador.OpcaoModificador;
 import vexon.sellionpdv.modificador.OpcaoModificadorRepository;
@@ -28,7 +31,9 @@ import vexon.sellionpdv.venda.dto.VendaRequestDTO;
 import vexon.sellionpdv.venda.dto.VendaResponseDTO;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,6 +54,9 @@ class VendaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private OpcaoModificadorRepository opcaoRepository;
     @Mock private UsuarioContextService usuarioContextService;
+    @Mock private Clock clock;
+    @Spy private PoliticaDesconto politicaDesconto = new PoliticaDesconto();
+    @Spy private PoliticaMatrizPagamento politicaMatrizPagamento = new PoliticaMatrizPagamento();
 
     @InjectMocks private VendaService vendaService;
 
@@ -106,6 +114,69 @@ class VendaServiceTest {
         }
 
         @Test
+        @DisplayName("SEL-SEC-001 — deve associar maquininha do tenant atual")
+        void deve_AssociarMaquininha_quando_PertenceAoTenantAtual() {
+            Produto produto = umProduto(new BigDecimal("20.00"));
+            Maquininha maquininha = Maquininha.builder()
+                    .id(20L)
+                    .tenantId(tenant.getId())
+                    .nome("Terminal do tenant")
+                    .marca("Teste")
+                    .taxaDebito(new BigDecimal("1.00"))
+                    .taxaCredito(new BigDecimal("2.00"))
+                    .build();
+            UUID key = UUID.randomUUID();
+
+            var dto = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.CREDITO, 20L, BandeiraCartao.VISA, null
+            );
+
+            configurarMocksBase(tenant, caixa, operador, key);
+            when(maquininhaRepository.findById(20L)).thenReturn(Optional.of(maquininha));
+            when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
+
+            ArgumentCaptor<Venda> captor = ArgumentCaptor.forClass(Venda.class);
+            vendaService.registrarVenda(dto, key, "operador@test.com");
+            verify(vendaRepository).save(captor.capture());
+
+            assertSame(maquininha, captor.getValue().getMaquininha());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-001 — deve rejeitar maquininha de outro tenant")
+        void deve_RejeitarMaquininha_quando_PertenceAOutroTenant() {
+            Maquininha maquininhaOutroTenant = Maquininha.builder()
+                    .id(99L)
+                    .tenantId(2L)
+                    .nome("Terminal de outro tenant")
+                    .marca("Teste")
+                    .taxaDebito(new BigDecimal("1.00"))
+                    .taxaCredito(new BigDecimal("2.00"))
+                    .build();
+            UUID key = UUID.randomUUID();
+
+            var dto = new VendaRequestDTO(
+                    List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
+                    FormaPagamento.CREDITO, 99L, BandeiraCartao.VISA, null
+            );
+
+            when(vendaRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+            when(caixaService.buscarCaixaAtual()).thenReturn(caixa);
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(maquininhaRepository.findById(99L)).thenReturn(Optional.of(maquininhaOutroTenant));
+
+            ResourceNotFoundException exception = assertThrows(
+                    ResourceNotFoundException.class,
+                    () -> vendaService.registrarVenda(dto, key, "operador@test.com")
+            );
+
+            assertEquals("Maquininha não encontrada.", exception.getMessage());
+            verify(vendaRepository, never()).save(any(Venda.class));
+            verify(produtoRepository, never()).findById(anyLong());
+        }
+
+        @Test
         @DisplayName("V2/V4 — preço unitário deve ser precoBase + soma de todos os precoAdicional")
         void deve_CalcularPrecoUnitario_quando_ComModificadores() {
             // precoBase=20 + opcao1=2 + opcao2=3 → precoUnitario=25 | qty=1 → subtotal=25
@@ -144,7 +215,7 @@ class VendaServiceTest {
             // subtotal=50 | desconto=10 → totalFinal=40
             var dto = new VendaRequestDTO(
                     List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
-                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("10.00")
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("10.00"), "Desconto autorizado"
             );
 
             configurarMocksBase(tenant, caixa, operador, key);
@@ -198,12 +269,15 @@ class VendaServiceTest {
             Tenant tenant = umTenant();
             Usuario operador = umOperador(tenant);
             Venda venda = umaVenda().comSubtotal(new BigDecimal("30.00")).build();
+            OffsetDateTime agora = OffsetDateTime.parse("2026-07-22T16:00:00-03:00");
 
-            when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
+            when(vendaRepository.findByIdAndTenantId(1L, tenant.getId())).thenReturn(Optional.of(venda));
             when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
             when(vendaRepository.save(any(Venda.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(clock.instant()).thenReturn(agora.toInstant());
+            when(clock.getZone()).thenReturn(ZoneOffset.UTC);
 
-            vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("Pedido duplicado"), "operador@test.com");
+            vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("  Pedido duplicado  "), "operador@test.com");
 
             ArgumentCaptor<Venda> captor = ArgumentCaptor.forClass(Venda.class);
             verify(vendaRepository).save(captor.capture());
@@ -211,7 +285,7 @@ class VendaServiceTest {
             Venda cancelada = captor.getValue();
             assertEquals(StatusVenda.CANCELADA, cancelada.getStatus());
             assertEquals("Pedido duplicado", cancelada.getJustificativaCancelamento());
-            assertNotNull(cancelada.getDataCancelamento());
+            assertEquals(agora.toInstant(), cancelada.getDataCancelamento().toInstant());
             assertSame(operador, cancelada.getUsuarioCancelamento());
         }
     }
@@ -327,7 +401,7 @@ class VendaServiceTest {
 
             var dto = new VendaRequestDTO(
                     List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
-                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("30.00")
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("30.00"), "Tentativa integral"
             );
 
             when(vendaRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
@@ -338,7 +412,7 @@ class VendaServiceTest {
             BusinessException ex = assertThrows(BusinessException.class,
                     () -> vendaService.registrarVenda(dto, key, "operador@test.com"));
 
-            assertEquals("O desconto não pode ser maior que o subtotal da venda.", ex.getMessage());
+            assertEquals("O desconto deve ser menor que o subtotal da venda.", ex.getMessage());
             verify(vendaRepository, never()).save(any());
         }
 
@@ -365,7 +439,10 @@ class VendaServiceTest {
         @Test
         @DisplayName("cancelarVenda — deve lançar ResourceNotFoundException para venda inexistente")
         void deve_LancarResourceNotFoundException_quando_CancelarVendaInexistente() {
-            when(vendaRepository.findById(404L)).thenReturn(Optional.empty());
+            Tenant tenant = umTenant();
+            Usuario operador = umOperador(tenant);
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(vendaRepository.findByIdAndTenantId(404L, tenant.getId())).thenReturn(Optional.empty());
 
             assertThrows(ResourceNotFoundException.class,
                     () -> vendaService.cancelarVenda(404L, new CancelamentoVendaRequestDTO("motivo"), "operador@test.com"));
@@ -464,6 +541,8 @@ class VendaServiceTest {
         @Test
         @DisplayName("V13 — cancelar venda já cancelada deve lançar BusinessException (SAST-08, corrige comportamento antigo)")
         void deve_RejeitarNovoCancelamento_quando_VendaJaCancelada() {
+            Tenant tenant = umTenant();
+            Usuario operador = umOperador(tenant);
             Venda venda = umaVenda()
                     .comStatus(StatusVenda.CANCELADA)
                     .comJustificativa("motivo original")
@@ -472,7 +551,8 @@ class VendaServiceTest {
                     .comDataVenda(OffsetDateTime.now().minusHours(2))
                     .build(); // totalFinal auto → TEN - ZERO = TEN
 
-            when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(vendaRepository.findByIdAndTenantId(1L, tenant.getId())).thenReturn(Optional.of(venda));
 
             BusinessException ex = assertThrows(BusinessException.class, () ->
                     vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("novo motivo"), "operador@test.com"));
@@ -485,10 +565,13 @@ class VendaServiceTest {
         @Test
         @DisplayName("deve lançar BusinessException ao cancelar venda de um caixa já FECHADO (SAST-08)")
         void deve_RejeitarCancelamento_quando_CaixaJaFechado() {
+            Tenant tenant = umTenant();
+            Usuario operador = umOperador(tenant);
             Caixa caixaFechado = Caixa.builder().id(10L).status(vexon.sellionpdv.caixa.StatusCaixa.FECHADO).build();
             Venda venda = umaVenda().comSubtotal(BigDecimal.TEN).comCaixa(caixaFechado).build();
 
-            when(vendaRepository.findById(1L)).thenReturn(Optional.of(venda));
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
+            when(vendaRepository.findByIdAndTenantId(1L, tenant.getId())).thenReturn(Optional.of(venda));
 
             BusinessException ex = assertThrows(BusinessException.class, () ->
                     vendaService.cancelarVenda(1L, new CancelamentoVendaRequestDTO("motivo"), "operador@test.com"));
@@ -571,26 +654,26 @@ class VendaServiceTest {
         }
 
         @Test
-        @DisplayName("deve_CalcularTotalFinalZero_quando_DescontoIgualAoSubtotal")
-        void deve_CalcularTotalFinalZero_quando_DescontoIgualAoSubtotal() {
-            // subtotal = 50 | desconto = 50 → totalFinal = ZERO sem lançar exceção
+        @DisplayName("SEL-SEC-003 — deve rejeitar desconto igual ao subtotal")
+        void deve_RejeitarDesconto_quando_DescontoIgualAoSubtotal() {
             Produto produto = umProduto(new BigDecimal("50.00"));
             UUID key = UUID.randomUUID();
 
             var dto = new VendaRequestDTO(
                     List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
-                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("50.00")
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("50.00"), "Gratuidade indevida"
             );
 
-            configurarMocksBase(tenant, caixa, operador, key);
+            when(vendaRepository.findByIdempotencyKey(key)).thenReturn(Optional.empty());
+            when(caixaService.buscarCaixaAtual()).thenReturn(caixa);
+            when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(operador));
             when(produtoRepository.findById(1L)).thenReturn(Optional.of(produto));
 
-            ArgumentCaptor<Venda> captor = ArgumentCaptor.forClass(Venda.class);
-            assertDoesNotThrow(() -> vendaService.registrarVenda(dto, key, "operador@test.com"));
-            verify(vendaRepository).save(captor.capture());
+            var ex = assertThrows(vexon.sellionpdv.common.exception.CodedHttpException.class,
+                    () -> vendaService.registrarVenda(dto, key, "operador@test.com"));
 
-            assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().getTotalFinal()),
-                    "totalFinal deve ser ZERO quando desconto iguala o subtotal");
+            assertEquals("DESCONTO_INTEGRAL_NAO_PERMITIDO", ex.getCode());
+            verify(vendaRepository, never()).save(any());
         }
 
         // ─── Melhoria 3 — precisão de BigDecimal ────────────────────────────────
@@ -662,7 +745,7 @@ class VendaServiceTest {
 
             var dto = new VendaRequestDTO(
                     List.of(new ItemVendaRequestDTO(1L, 1, List.of())),
-                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("0.01")
+                    FormaPagamento.DINHEIRO, null, null, new BigDecimal("0.01"), "Ajuste autorizado"
             );
 
             configurarMocksBase(tenant, caixa, operador, key);
