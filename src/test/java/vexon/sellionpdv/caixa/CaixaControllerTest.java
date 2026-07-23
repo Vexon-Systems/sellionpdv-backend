@@ -15,6 +15,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import vexon.sellionpdv.caixa.dto.MovimentacaoCaixaRequestDTO;
+import vexon.sellionpdv.caixa.dto.CaixaOperacionalResponseDTO;
+import vexon.sellionpdv.caixa.dto.EventoCaixaOperacionalResponseDTO;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.config.GlobalExceptionHandler;
@@ -29,6 +31,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static vexon.sellionpdv.caixa.CaixaTestFixtures.*;
 
@@ -61,6 +64,42 @@ class CaixaControllerTest {
         return objectMapper.writeValueAsString(obj);
     }
 
+    @Nested
+    @DisplayName("GET /api/caixa/operacional")
+    class GetVisaoOperacional {
+
+        @Test
+        @DisplayName("SEL-SEC-008 — contrato não serializa campos monetários")
+        void deve_RetornarContratoSemCamposMonetarios() throws Exception {
+            when(service.buscarVisaoOperacional()).thenReturn(new CaixaOperacionalResponseDTO(
+                    true,
+                    false,
+                    10L,
+                    StatusCaixa.ABERTO,
+                    java.time.OffsetDateTime.parse("2026-07-23T10:00:00-03:00"),
+                    1L,
+                    "Operador",
+                    List.of(new EventoCaixaOperacionalResponseDTO(
+                            "venda-1",
+                            "VENDA",
+                            "CONCLUIDA",
+                            "Venda #1",
+                            java.time.OffsetDateTime.parse("2026-07-23T11:00:00-03:00")))));
+
+            mockMvc.perform(get("/api/caixa/operacional"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(jsonPath("$.caixaAberto").value(true))
+                    .andExpect(jsonPath("$.visaoAdministrativa").value(false))
+                    .andExpect(jsonPath("$.saldoInicial").doesNotExist())
+                    .andExpect(jsonPath("$.saldoEsperado").doesNotExist())
+                    .andExpect(jsonPath("$.furoCaixa").doesNotExist())
+                    .andExpect(jsonPath("$.eventos[0].valor").doesNotExist())
+                    .andExpect(jsonPath("$.eventos[0].formaPagamento").doesNotExist())
+                    .andExpect(jsonPath("$.eventos[0].totalFinal").doesNotExist());
+        }
+    }
+
     // ─── GET /api/caixa/atual ────────────────────────────────────────────────────
 
     @Nested
@@ -74,6 +113,7 @@ class CaixaControllerTest {
 
             mockMvc.perform(get("/api/caixa/atual"))
                     .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(jsonPath("$.id").value(10))
                     .andExpect(jsonPath("$.status").value("ABERTO"))
                     .andExpect(jsonPath("$.saldoInicial").value(100.0));
@@ -104,6 +144,7 @@ class CaixaControllerTest {
 
             mockMvc.perform(get("/api/caixa/movimentacao"))
                     .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(jsonPath("$.length()").value(1))
                     .andExpect(jsonPath("$[0].tipo").value("SANGRIA"))
                     .andExpect(jsonPath("$[0].valor").value(50.0));
@@ -135,6 +176,7 @@ class CaixaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umCaixaRequestDTO(new BigDecimal("100.00")))))
                     .andExpect(status().isCreated())
+                    .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(jsonPath("$.status").value("ABERTO"))
                     .andExpect(jsonPath("$.id").value(10));
         }
@@ -158,6 +200,16 @@ class CaixaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umCaixaRequestDTO(null))))
                     .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-007 — rejeita saldo inicial com mais de duas casas")
+        void deve_Retornar400_quando_SaldoInicialTemEscalaInvalida() throws Exception {
+            mockMvc.perform(post("/api/caixa/abrir")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umCaixaRequestDTO(new BigDecimal("100.001")))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDACAO_INVALIDA"));
         }
     }
 
@@ -220,6 +272,20 @@ class CaixaControllerTest {
                                     TipoMovimentacaoCaixa.SANGRIA, new BigDecimal("50.00"), ""))))
                     .andExpect(status().isBadRequest());
         }
+
+        @Test
+        @DisplayName("SEL-SEC-007 — rejeita movimentação com mais de duas casas")
+        void deve_Retornar400_quando_ValorTemEscalaInvalida() throws Exception {
+            mockMvc.perform(post("/api/caixa/movimentacao")
+                            .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(new MovimentacaoCaixaRequestDTO(
+                                    TipoMovimentacaoCaixa.REFORCO,
+                                    new BigDecimal("10.001"),
+                                    "Escala inválida"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDACAO_INVALIDA"));
+        }
     }
 
     // ─── POST /api/caixa/fechar ──────────────────────────────────────────────────
@@ -237,6 +303,7 @@ class CaixaControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umCaixaFechamentoRequestDTO(new BigDecimal("300.00")))))
                     .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-store"))
                     .andExpect(jsonPath("$.saldoInicial").value(100.0))
                     .andExpect(jsonPath("$.totalVendasDinheiro").value(200.0))
                     .andExpect(jsonPath("$.furoCaixa").value(0));
@@ -251,7 +318,19 @@ class CaixaControllerTest {
             mockMvc.perform(post("/api/caixa/fechar")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(json(umCaixaFechamentoRequestDTO(new BigDecimal("100.00")))))
-                    .andExpect(status().isNotFound());
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.saldoEsperado").doesNotExist())
+                    .andExpect(jsonPath("$.furoCaixa").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-007 — rejeita saldo contado com mais de duas casas")
+        void deve_Retornar400_quando_SaldoContadoTemEscalaInvalida() throws Exception {
+            mockMvc.perform(post("/api/caixa/fechar")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(umCaixaFechamentoRequestDTO(new BigDecimal("100.001")))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDACAO_INVALIDA"));
         }
     }
 }

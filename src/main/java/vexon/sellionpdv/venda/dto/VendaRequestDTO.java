@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Size;
 import vexon.sellionpdv.maquininha.BandeiraCartao;
 import vexon.sellionpdv.venda.FormaPagamento;
 
@@ -23,5 +25,19 @@ public record VendaRequestDTO(
         BandeiraCartao bandeiraCartao,
 
         @PositiveOrZero(message = "O desconto não pode ser negativo")
-        BigDecimal descontoAplicado
-) {}
+        @Digits(integer = 8, fraction = 2, message = "O desconto deve possuir no máximo duas casas decimais")
+        BigDecimal descontoAplicado,
+
+        @Size(max = 500, message = "O motivo do desconto deve ter no máximo 500 caracteres")
+        String motivoDesconto
+) {
+    public VendaRequestDTO(
+            List<ItemVendaRequestDTO> itens,
+            FormaPagamento formaPagamento,
+            Long maquininhaId,
+            BandeiraCartao bandeiraCartao,
+            BigDecimal descontoAplicado
+    ) {
+        this(itens, formaPagamento, maquininhaId, bandeiraCartao, descontoAplicado, null);
+    }
+}

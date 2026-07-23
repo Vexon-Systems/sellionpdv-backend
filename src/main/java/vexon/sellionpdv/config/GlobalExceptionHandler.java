@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.CodedHttpException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 
 import java.util.stream.Collectors;
@@ -23,6 +24,14 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    @ExceptionHandler(CodedHttpException.class)
+    public ResponseEntity<ProblemDetail> handleCodedHttp(CodedHttpException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(ex.getStatus(), ex.getMessage());
+        detail.setTitle(ex.getStatus().is4xxClientError() ? "Requisição rejeitada" : "Erro interno");
+        detail.setProperty("code", ex.getCode());
+        return ResponseEntity.status(ex.getStatus()).body(detail);
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(ResourceNotFoundException ex) {
@@ -53,6 +62,7 @@ public class GlobalExceptionHandler {
 
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, erros);
         detail.setTitle("Erro de validação");
+        detail.setProperty("code", "VALIDACAO_INVALIDA");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
     }
 
@@ -60,6 +70,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleHttpMessageNotReadable(HttpMessageNotReadableException ex) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Corpo da requisição inválido ou malformado.");
         detail.setTitle("Requisição inválida");
+        detail.setProperty("code", "VALIDACAO_INVALIDA");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
     }
 
