@@ -51,6 +51,13 @@ public class Usuario {
     @Column(name = "senha_hash", nullable = false)
     private String senhaHash;
 
+    @Builder.Default
+    @Column(name = "deve_trocar_senha", nullable = false)
+    private Boolean deveTrocarSenha = false;
+
+    @Column(name = "sessao_invalida_antes")
+    private Instant sessaoInvalidaAntes;
+
     @Column(name = "role", nullable = false)
     private String role;
 

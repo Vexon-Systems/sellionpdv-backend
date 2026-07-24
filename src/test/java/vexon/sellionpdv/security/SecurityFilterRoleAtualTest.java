@@ -16,6 +16,7 @@ import vexon.sellionpdv.usuario.Usuario;
 import vexon.sellionpdv.usuario.UsuarioRepository;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,5 +76,26 @@ class SecurityFilterRoleAtualTest {
                 autenticacaoDuranteRequest.get().getAuthorities().iterator().next().getAuthority());
         assertEquals(10L, tenantDuranteRequest.get());
         assertNull(TenantContext.getCurrentTenant());
+    }
+
+    @Test
+    @DisplayName("conta com senha temporária só acessa a troca de senha")
+    void deveBloquearRecursosEnquantoTrocaSenhaObrigatoria() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/caixas");
+        request.addHeader("Authorization", "Bearer jwt-temporario");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Usuario usuario = Usuario.builder()
+                .id(1L).email("admin@test.com").nome("Admin").senhaHash("hash")
+                .role("ROLE_ADMIN").ativo(true).deveTrocarSenha(true).build();
+
+        when(tokenService.extrairTenantId("jwt-temporario")).thenReturn(10L);
+        when(tokenService.validarToken("jwt-temporario")).thenReturn("admin@test.com");
+        when(usuarioRepository.findByEmailWithTenant("admin@test.com")).thenReturn(Optional.of(usuario));
+
+        AtomicBoolean cadeiaExecutada = new AtomicBoolean(false);
+        securityFilter.doFilter(request, response, (req, res) -> cadeiaExecutada.set(true));
+
+        assertEquals(403, response.getStatus());
+        assertEquals(false, cadeiaExecutada.get());
     }
 }

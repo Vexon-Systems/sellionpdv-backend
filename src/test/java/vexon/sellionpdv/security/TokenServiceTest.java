@@ -99,7 +99,25 @@ class TokenServiceTest {
             assertEquals(1L, decoded.getClaim("usuarioId").asLong());
             assertNotNull(decoded.getClaim("tenantId").asLong(), "claim tenantId não deve ser nula");
             assertEquals(1L, decoded.getClaim("tenantId").asLong());
+            assertNotNull(decoded.getIssuedAt(), "token deve ter data de emissão para permitir invalidação de sessão");
             assertNotNull(decoded.getExpiresAt());
+        }
+    }
+
+    @Nested
+    @DisplayName("extrairEmitidoEm")
+    class ExtrairEmitidoEm {
+
+        @Test
+        @DisplayName("retorna a emissão de token válido")
+        void deveRetornarEmissaoQuandoTokenValido() {
+            assertNotNull(tokenService.extrairEmitidoEm(tokenService.gerarToken(usuario)));
+        }
+
+        @Test
+        @DisplayName("retorna nulo para token inválido")
+        void deveRetornarNuloQuandoTokenInvalido() {
+            assertNull(tokenService.extrairEmitidoEm("token-invalido"));
         }
     }
 
