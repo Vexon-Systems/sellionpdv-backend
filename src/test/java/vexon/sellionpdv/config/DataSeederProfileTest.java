@@ -6,12 +6,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * Regressão do SAST-02 (credenciais padrão semeadas sem controle de ambiente):
+ * Regressão do SAST-02 e SEL-SEC-028 (credenciais padrão semeadas ou geradas sem
+ * controle de ambiente):
  * confirma que o bean DataSeeder — que cria admin@sellion.com.br — só existe nos
  * profiles dev/test/local, nunca em prod/staging.
  */
@@ -32,6 +34,12 @@ class DataSeederProfileTest {
         void dataSeederNaoDeveExistirEmProd() {
             assertEquals(0, context.getBeanNamesForType(DataSeeder.class).length);
         }
+
+        @Test
+        @DisplayName("não deve existir usuário padrão em memória do Spring Boot")
+        void usuarioPadraoDoSpringNaoDeveExistirEmProd() {
+            assertEquals(0, context.getBeanNamesForType(InMemoryUserDetailsManager.class).length);
+        }
     }
 
     @Nested
@@ -47,6 +55,12 @@ class DataSeederProfileTest {
         @DisplayName("DataSeeder não deve existir como bean")
         void dataSeederNaoDeveExistirEmStaging() {
             assertEquals(0, context.getBeanNamesForType(DataSeeder.class).length);
+        }
+
+        @Test
+        @DisplayName("não deve existir usuário padrão em memória do Spring Boot")
+        void usuarioPadraoDoSpringNaoDeveExistirEmStaging() {
+            assertEquals(0, context.getBeanNamesForType(InMemoryUserDetailsManager.class).length);
         }
     }
 

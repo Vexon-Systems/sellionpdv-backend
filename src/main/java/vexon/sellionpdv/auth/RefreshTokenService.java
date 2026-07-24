@@ -60,7 +60,7 @@ public class RefreshTokenService {
         return entidade;
     }
 
-    private void revogarTodosOsTokensAtivos(Usuario usuario) {
+    public void revogarTodosOsTokensAtivos(Usuario usuario) {
         refreshTokenRepository.findAllByUsuarioAndRevogadoFalse(usuario)
                 .forEach(token -> token.setRevogado(true));
     }

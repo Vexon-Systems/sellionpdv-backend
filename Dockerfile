@@ -30,6 +30,8 @@ RUN addgroup -S spring && adduser -S spring -G spring
 WORKDIR /app
 
 COPY --from=builder /app/target/sellionpdv-*.jar app.jar
+COPY scripts/recuperacao-admin.sh recuperacao-admin.sh
+RUN chown spring:spring recuperacao-admin.sh && chmod 700 recuperacao-admin.sh
 
 USER spring
 
