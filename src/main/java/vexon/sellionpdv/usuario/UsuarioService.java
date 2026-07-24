@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import vexon.sellionpdv.common.exception.BusinessException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.common.storage.ImagemStorage;
+import vexon.sellionpdv.auth.RefreshTokenService;
 import vexon.sellionpdv.usuario.dto.*;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final ImagemStorage imagemStorage;
+    private final RefreshTokenService refreshTokenService;
 
     private static final Map<String, String> MIME_PARA_EXTENSAO = Map.of(
             "image/jpeg", ".jpg",
@@ -57,6 +59,9 @@ public class UsuarioService {
         }
 
         usuario.setSenhaHash(passwordEncoder.encode(dto.novaSenha()));
+        usuario.setDeveTrocarSenha(false);
+        usuario.setSessaoInvalidaAntes(java.time.Instant.now());
+        refreshTokenService.revogarTodosOsTokensAtivos(usuario);
         usuarioRepository.save(usuario);
     }
 

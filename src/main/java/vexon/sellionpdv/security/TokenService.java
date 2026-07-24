@@ -48,6 +48,7 @@ public class TokenService {
                     .withSubject(usuario.getEmail())
                     .withClaim("usuarioId", usuario.getId())
                     .withClaim("tenantId", usuario.getTenant().getId())
+                    .withIssuedAt(Instant.now())
                     .withExpiresAt(gerarDataExpiracao())
                     .sign(algoritmo);
 
@@ -79,6 +80,20 @@ public class TokenService {
                     .verify(token)
                     .getClaim("tenantId").asLong();
         } catch (JWTVerificationException exception) {
+            return null;
+        }
+    }
+
+    public Instant extrairEmitidoEm(String token) {
+        try {
+            Algorithm algoritmo = Algorithm.HMAC256(secret);
+            return JWT.require(algoritmo)
+                    .withIssuer("SellionPDV")
+                    .build()
+                    .verify(token)
+                    .getIssuedAt()
+                    .toInstant();
+        } catch (JWTVerificationException | NullPointerException exception) {
             return null;
         }
     }

@@ -36,7 +36,8 @@ public class SecurityFilter extends OncePerRequestFilter {
 
                     var usuario = usuarioRepository.findByEmailWithTenant(email);
 
-                    if (usuario.isPresent() && usuario.get().getAtivo()) {
+                    if (usuario.isPresent() && usuario.get().getAtivo()
+                            && !tokenFoiInvalidado(token, usuario.get())) {
                         var userDetails = org.springframework.security.core.userdetails.User
                                 .withUsername(usuario.get().getEmail())
                                 .password(usuario.get().getSenhaHash())
@@ -45,6 +46,13 @@ public class SecurityFilter extends OncePerRequestFilter {
 
                         var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                         SecurityContextHolder.getContext().setAuthentication(authentication);
+
+                        if (Boolean.TRUE.equals(usuario.get().getDeveTrocarSenha())
+                                && !trocaSenhaPermitida(request)) {
+                            response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                                    "Troque a senha temporária antes de acessar outros recursos.");
+                            return;
+                        }
                     }
                 }
             }
@@ -54,6 +62,17 @@ public class SecurityFilter extends OncePerRequestFilter {
         } finally {
             TenantContext.clear();
         }
+    }
+
+    private boolean tokenFoiInvalidado(String token, vexon.sellionpdv.usuario.Usuario usuario) {
+        if (usuario.getSessaoInvalidaAntes() == null) return false;
+        java.time.Instant emitidoEm = tokenService.extrairEmitidoEm(token);
+        return emitidoEm == null || emitidoEm.isBefore(usuario.getSessaoInvalidaAntes());
+    }
+
+    private boolean trocaSenhaPermitida(HttpServletRequest request) {
+        return "PUT".equalsIgnoreCase(request.getMethod())
+                && "/api/usuarios/me/senha".equals(request.getRequestURI());
     }
 
     private String recoverToken(HttpServletRequest request) {
