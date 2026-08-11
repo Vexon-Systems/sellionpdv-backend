@@ -2,6 +2,7 @@ package vexon.sellionpdv.caixa;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.caixa.dto.*;
@@ -21,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -137,10 +139,15 @@ public class CaixaService {
                 .ifPresent(m -> { throw new BusinessException("Movimentação já registrada com esta chave."); });
 
         Caixa caixa = buscarCaixaAtual();
+        Usuario usuarioLogado = usuarioContextService.getUsuarioAutenticado();
+        if (!Objects.equals(caixa.getTenant().getId(), usuarioLogado.getTenant().getId())) {
+            throw new AccessDeniedException("Usuário autenticado sem tenant válido para o caixa.");
+        }
 
         MovimentacaoCaixa movimentacao = MovimentacaoCaixa.builder()
                 .tenant(caixa.getTenant())
                 .caixa(caixa)
+                .usuario(usuarioLogado)
                 .tipo(dto.tipo())
                 .valor(dto.valor())
                 .motivo(dto.motivo())
