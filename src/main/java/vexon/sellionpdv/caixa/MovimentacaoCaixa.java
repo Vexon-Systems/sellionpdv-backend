@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
 import vexon.sellionpdv.tenant.Tenant;
+import vexon.sellionpdv.usuario.Usuario;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -33,6 +34,10 @@ public class MovimentacaoCaixa {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "caixa_id", nullable = false)
     private Caixa caixa;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_id")
+    private Usuario usuario;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

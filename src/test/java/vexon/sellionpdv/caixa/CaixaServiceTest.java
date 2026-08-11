@@ -300,8 +300,10 @@ class CaixaServiceTest {
         @DisplayName("C9 — deve registrar SANGRIA com tipo, valor, motivo, caixa, tenant e idempotencyKey corretos")
         void deve_RegistrarSangria_com_Tipo_Valor_Motivo_e_CaixaCorretos() {
             Caixa caixa = umCaixaAberto(umTenant());
+            Usuario autor = umOperador(caixa.getTenant());
             UUID key = UUID.randomUUID();
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.of(caixa));
+            when(usuarioContextService.getUsuarioAutenticado()).thenReturn(autor);
 
             MovimentacaoCaixaRequestDTO dto = new MovimentacaoCaixaRequestDTO(
                     TipoMovimentacaoCaixa.SANGRIA, new BigDecimal("75.00"), "Pagamento de fornecedor");
@@ -316,6 +318,7 @@ class CaixaServiceTest {
             assertEquals("Pagamento de fornecedor", salva.getMotivo());
             assertSame(caixa, salva.getCaixa());
             assertSame(caixa.getTenant(), salva.getTenant());
+            assertSame(autor, salva.getUsuario());
             assertNotNull(salva.getDataMovimentacao());
             assertEquals(key, salva.getIdempotencyKey());
         }
@@ -324,7 +327,9 @@ class CaixaServiceTest {
         @DisplayName("C10 — deve registrar REFORCO com tipo, valor e caixa corretos")
         void deve_RegistrarReforco_com_Tipo_Valor_e_CaixaCorretos() {
             Caixa caixa = umCaixaAberto(umTenant());
+            Usuario autor = umOperador(caixa.getTenant());
             when(caixaRepository.findByStatus(StatusCaixa.ABERTO)).thenReturn(Optional.of(caixa));
+            when(usuarioContextService.getUsuarioAutenticado()).thenReturn(autor);
 
             MovimentacaoCaixaRequestDTO dto = new MovimentacaoCaixaRequestDTO(
                     TipoMovimentacaoCaixa.REFORCO, new BigDecimal("200.00"), "Reforço de troco");
@@ -337,6 +342,7 @@ class CaixaServiceTest {
             assertEquals(TipoMovimentacaoCaixa.REFORCO, salva.getTipo());
             assertEquals(0, new BigDecimal("200.00").compareTo(salva.getValor()));
             assertSame(caixa, salva.getCaixa());
+            assertSame(autor, salva.getUsuario());
         }
 
         @Test

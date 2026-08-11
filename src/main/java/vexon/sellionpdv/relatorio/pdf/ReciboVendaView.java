@@ -55,7 +55,7 @@ public class ReciboVendaView {
                 .nomeFantasia(resolverNomeFantasia(venda))
                 .vendaId(venda.getId())
                 .dataFormatada(formatarDataHora(venda.getDataVenda()))
-                .operador(venda.getCaixa().getOperadorAbertura().getNome())
+                .operador(venda.getUsuario().getNome())
                 .formaPagamento(venda.getFormaPagamento().name())
                 .status(venda.getStatus().name())
                 .cancelada(cancelada)

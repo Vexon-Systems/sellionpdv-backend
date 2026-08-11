@@ -47,7 +47,7 @@ public class RelatorioService {
                 v.getTotalFinal(),
                 v.getFormaPagamento().name(),
                 v.getStatus().name(),
-                v.getCaixa().getOperadorAbertura().getNome(),
+                v.getUsuario().getNome(),
                 v.getMotivoDesconto()
         ));
     }
@@ -77,7 +77,7 @@ public class RelatorioService {
                 venda.getId(),
                 venda.getDataVenda() != null ? venda.getDataVenda().toInstant() : null,
                 venda.getCaixa().getId(),
-                venda.getCaixa().getOperadorAbertura().getNome(),
+                venda.getUsuario().getNome(),
                 venda.getTotalFinal(),
                 venda.getFormaPagamento().name(),
                 venda.getStatus().name(),
