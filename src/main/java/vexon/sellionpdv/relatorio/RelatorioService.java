@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiro;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiroRepository;
+import vexon.sellionpdv.financeiro.StatusLancamentoFinanceiro;
 import vexon.sellionpdv.relatorio.dto.*;
 import vexon.sellionpdv.venda.StatusVenda;
 import vexon.sellionpdv.venda.Venda;
@@ -158,7 +159,8 @@ public class RelatorioService {
 
         // 6. Despesas Operacionais (lançamentos manuais do período)
         List<LancamentoFinanceiro> lancamentos = lancamentoRepository
-                .findByDataReferenciaBetweenOrderByDataReferenciaDesc(dataInicial, dataFinal);
+                .findByDataReferenciaBetweenAndStatusOrderByDataReferenciaDesc(
+                        dataInicial, dataFinal, StatusLancamentoFinanceiro.ATIVO);
 
         Map<String, BigDecimal> despesasPorCategoria = lancamentos.stream()
                 .collect(Collectors.groupingBy(

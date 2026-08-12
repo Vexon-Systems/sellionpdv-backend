@@ -12,7 +12,11 @@ public record LancamentoResponseDTO(
         BigDecimal valor,
         String categoria,
         LocalDate dataReferencia,
-        OffsetDateTime criadoEm
+        OffsetDateTime criadoEm,
+        String status,
+        String motivoCancelamento,
+        OffsetDateTime dataCancelamento,
+        Long usuarioCancelamentoId
 ) {
     public LancamentoResponseDTO(LancamentoFinanceiro l) {
         this(
@@ -21,7 +25,11 @@ public record LancamentoResponseDTO(
                 l.getValor(),
                 l.getCategoria().name(),
                 l.getDataReferencia(),
-                l.getCriadoEm()
+                l.getCriadoEm(),
+                l.getStatus().name(),
+                l.getMotivoCancelamento(),
+                l.getDataCancelamento(),
+                l.getUsuarioCancelamento() == null ? null : l.getUsuarioCancelamento().getId()
         );
     }
 }
