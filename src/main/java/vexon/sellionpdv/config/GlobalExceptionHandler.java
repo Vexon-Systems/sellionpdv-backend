@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -72,6 +73,14 @@ public class GlobalExceptionHandler {
         detail.setTitle("Requisição inválida");
         detail.setProperty("code", "VALIDACAO_INVALIDA");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ProblemDetail> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.METHOD_NOT_ALLOWED,
+                "Método HTTP não permitido para este recurso.");
+        detail.setTitle("Método não permitido");
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(detail);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
