@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,8 +23,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import vexon.sellionpdv.common.exception.BusinessException;
+import vexon.sellionpdv.common.exception.CodedHttpException;
 import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.common.service.UsuarioContextService;
 import vexon.sellionpdv.financeiro.dto.CancelamentoLancamentoRequestDTO;
@@ -37,6 +41,7 @@ class LancamentoFinanceiroServiceTest {
     private static final Instant AGORA = Instant.parse("2026-08-12T12:00:00Z");
 
     @Mock private LancamentoFinanceiroRepository repository;
+    @Mock private LancamentoFinanceiroPersistenciaService persistenciaService;
     @Mock private UsuarioContextService usuarioContextService;
     @Mock private Clock clock;
     @InjectMocks private LancamentoFinanceiroService service;
@@ -65,7 +70,7 @@ class LancamentoFinanceiroServiceTest {
         String descricaoOriginal = lancamento.getDescricao();
         when(usuarioContextService.getUsuarioAutenticado()).thenReturn(adminA);
         when(repository.findByIdAndTenantId(7L, 1L)).thenReturn(Optional.of(lancamento));
-        when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(repository.save(any())).thenAnswer(invocation -> invocation.<LancamentoFinanceiro>getArgument(0));
 
         service.cancelar(7L, new CancelamentoLancamentoRequestDTO("  Lançamento duplicado  "));
 
@@ -129,11 +134,127 @@ class LancamentoFinanceiroServiceTest {
         verify(repository, never()).save(any());
     }
 
+    @Test
+    void primeiraChaveCriaLancamentoComHashEApenasUmEfeitoFinanceiro() {
+        UUID chave = UUID.randomUUID();
+        LancamentoRequestDTO dto = novoLancamentoRequest();
+        when(repository.findByTenantIdAndIdempotencyKey(1L, chave)).thenReturn(Optional.empty());
+        when(persistenciaService.persistir(any())).thenAnswer(invocation -> {
+            LancamentoFinanceiro criado = invocation.<LancamentoFinanceiro>getArgument(0);
+            criado.setId(71L);
+            return criado;
+        });
+
+        var resultado = service.criar(dto, chave);
+
+        assertEquals(false, resultado.replayed());
+        assertEquals(71L, resultado.lancamento().id());
+        verify(persistenciaService).persistir(any());
+    }
+
+    @Test
+    void replayIdenticoRetornaOriginalSemNovoEfeitoFinanceiro() {
+        UUID chave = UUID.randomUUID();
+        LancamentoFinanceiro existente = lancamentoAtivo(71L, 1L);
+        existente.setIdempotencyKey(chave);
+        existente.setIdempotencyPayloadHash(hashDe(novoLancamentoRequest()));
+        when(repository.findByTenantIdAndIdempotencyKey(1L, chave)).thenReturn(Optional.of(existente));
+
+        var resultado = service.criar(novoLancamentoRequest(), chave);
+
+        assertEquals(true, resultado.replayed());
+        assertEquals(71L, resultado.lancamento().id());
+        assertEquals(new BigDecimal("250.00"), existente.getValor());
+        verify(persistenciaService, never()).persistir(any());
+    }
+
+    @Test
+    void replayComValorDeEscalaDecimalEquivalenteNaoDuplicaEfeitoFinanceiro() {
+        UUID chave = UUID.randomUUID();
+        LancamentoFinanceiro existente = lancamentoAtivo(71L, 1L);
+        existente.setIdempotencyKey(chave);
+        existente.setIdempotencyPayloadHash(hashDe(novoLancamentoRequest()));
+        when(repository.findByTenantIdAndIdempotencyKey(1L, chave)).thenReturn(Optional.of(existente));
+
+        LancamentoRequestDTO valorComOutraEscala = new LancamentoRequestDTO("Aluguel", new BigDecimal("250.0"),
+                CategoriaLancamento.ALUGUEL, LocalDate.of(2026, 8, 1));
+        var resultado = service.criar(valorComOutraEscala, chave);
+
+        assertEquals(true, resultado.replayed());
+        assertEquals(new BigDecimal("250.00"), existente.getValor());
+        verify(persistenciaService, never()).persistir(any());
+    }
+
+    @Test
+    void mesmaChaveComOutroPayloadEhConflitoSemNovoEfeito() {
+        UUID chave = UUID.randomUUID();
+        LancamentoFinanceiro existente = lancamentoAtivo(71L, 1L);
+        existente.setIdempotencyKey(chave);
+        existente.setIdempotencyPayloadHash(hashDe(novoLancamentoRequest()));
+        when(repository.findByTenantIdAndIdempotencyKey(1L, chave)).thenReturn(Optional.of(existente));
+
+        LancamentoRequestDTO alterado = new LancamentoRequestDTO("Outro aluguel", new BigDecimal("250.00"),
+                CategoriaLancamento.ALUGUEL, LocalDate.of(2026, 8, 1));
+        CodedHttpException exception = assertThrows(CodedHttpException.class, () -> service.criar(alterado, chave));
+
+        assertEquals("IDEMPOTENCY_KEY_REUSED", exception.getCode());
+        verify(persistenciaService, never()).persistir(any());
+    }
+
+    @Test
+    void colisaoConcorrenteRelidaRetornaReplaySemSegundoLancamento() {
+        UUID chave = UUID.randomUUID();
+        LancamentoFinanceiro existente = lancamentoAtivo(71L, 1L);
+        existente.setIdempotencyKey(chave);
+        existente.setIdempotencyPayloadHash(hashDe(novoLancamentoRequest()));
+        when(repository.findByTenantIdAndIdempotencyKey(1L, chave))
+                .thenReturn(Optional.empty(), Optional.of(existente));
+        when(persistenciaService.persistir(any())).thenThrow(new DataIntegrityViolationException("unique"));
+
+        var resultado = service.criar(novoLancamentoRequest(), chave);
+
+        assertEquals(true, resultado.replayed());
+        assertEquals(71L, resultado.lancamento().id());
+        verify(repository, org.mockito.Mockito.times(2)).findByTenantIdAndIdempotencyKey(1L, chave);
+        verify(persistenciaService).persistir(any());
+    }
+
+    @Test
+    void mesmoUuidEmOutroTenantCriaOutroLancamentoSemConsultarTenantA() {
+        UUID chave = UUID.randomUUID();
+        TenantContext.setCurrentTenant(2L);
+        when(repository.findByTenantIdAndIdempotencyKey(2L, chave)).thenReturn(Optional.empty());
+        when(persistenciaService.persistir(any())).thenAnswer(invocation -> invocation.<LancamentoFinanceiro>getArgument(0));
+
+        service.criar(novoLancamentoRequest(), chave);
+
+        org.mockito.ArgumentCaptor<LancamentoFinanceiro> captor = org.mockito.ArgumentCaptor.forClass(LancamentoFinanceiro.class);
+        verify(persistenciaService).persistir(captor.capture());
+        assertEquals(2L, captor.getValue().getTenantId());
+        verify(repository, never()).findByTenantIdAndIdempotencyKey(eq(1L), eq(chave));
+    }
+
     private LancamentoFinanceiro lancamentoAtivo(Long id, Long tenantId) {
         return LancamentoFinanceiro.builder()
                 .id(id).tenantId(tenantId).descricao("Aluguel")
                 .valor(new BigDecimal("250.00")).categoria(CategoriaLancamento.ALUGUEL)
                 .dataReferencia(LocalDate.of(2026, 8, 1)).status(StatusLancamentoFinanceiro.ATIVO).build();
+    }
+
+    private LancamentoRequestDTO novoLancamentoRequest() {
+        return new LancamentoRequestDTO("Aluguel", new BigDecimal("250.00"), CategoriaLancamento.ALUGUEL,
+                LocalDate.of(2026, 8, 1));
+    }
+
+    private String hashDe(LancamentoRequestDTO dto) {
+        try {
+            String representacao = String.join("\n", dto.descricao().trim(), dto.valor().stripTrailingZeros().toPlainString(),
+                    dto.categoria().name(), dto.dataReferencia().toString());
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(representacao.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private void assertAtivoSemCancelamento(LancamentoFinanceiro lancamento) {
