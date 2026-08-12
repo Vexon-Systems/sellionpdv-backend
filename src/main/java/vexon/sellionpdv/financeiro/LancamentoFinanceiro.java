@@ -8,6 +8,7 @@ import vexon.sellionpdv.usuario.Usuario;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "lancamentos_financeiros")
@@ -42,6 +43,12 @@ public class LancamentoFinanceiro {
     @Builder.Default
     @Column(name = "criado_em", nullable = false, updatable = false)
     private OffsetDateTime criadoEm = OffsetDateTime.now();
+
+    @Column(name = "idempotency_key")
+    private UUID idempotencyKey;
+
+    @Column(name = "idempotency_payload_hash", length = 64)
+    private String idempotencyPayloadHash;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

@@ -8,6 +8,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -52,6 +53,15 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleMissingHeader(MissingRequestHeaderException ex) {
         ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         detail.setTitle("Header obrigatório ausente");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ProblemDetail> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Parâmetro ou header com formato inválido.");
+        detail.setTitle("Requisição inválida");
+        detail.setProperty("code", "VALIDACAO_INVALIDA");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(detail);
     }
 

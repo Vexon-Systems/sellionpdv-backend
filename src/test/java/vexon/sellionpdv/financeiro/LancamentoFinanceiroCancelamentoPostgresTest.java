@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @Testcontainers(disabledWithoutDocker = true)
-@DisplayName("SEL-SEC-010 — cancelamento de lançamento financeiro no PostgreSQL")
+@DisplayName("SEL-SEC-010/011 — integridade de lançamento financeiro no PostgreSQL")
 class LancamentoFinanceiroCancelamentoPostgresTest {
 
     @Container
@@ -130,6 +130,54 @@ class LancamentoFinanceiroCancelamentoPostgresTest {
         }
     }
 
+    @Test
+    @DisplayName("V12 preserva histórico nulo e impede chave repetida no mesmo tenant")
+    void migrationPreservaHistoricoEImpedeChaveDuplicadaNoMesmoTenant() throws SQLException {
+        configurarFlyway("11").migrate();
+
+        long historicoId;
+        DadosTenant tenant;
+        try (Connection connection = abrirConexao()) {
+            tenant = criarTenantComUsuario(connection, "Tenant A");
+            historicoId = inserirLancamento(connection, tenant.tenantId(), "Histórico", new BigDecimal("75.00"));
+        }
+
+        configurarFlyway(null).migrate();
+
+        try (Connection connection = abrirConexao()) {
+            try (PreparedStatement consulta = connection.prepareStatement(
+                    "SELECT idempotency_key, idempotency_payload_hash FROM lancamentos_financeiros WHERE id = ?")) {
+                consulta.setLong(1, historicoId);
+                try (ResultSet resultado = consulta.executeQuery()) {
+                    resultado.next();
+                    assertNull(resultado.getObject("idempotency_key"));
+                    assertNull(resultado.getString("idempotency_payload_hash"));
+                }
+            }
+
+            UUID chave = UUID.randomUUID();
+            inserirLancamentoIdempotente(connection, tenant.tenantId(), chave);
+            SQLException exception = assertThrows(SQLException.class,
+                    () -> inserirLancamentoIdempotente(connection, tenant.tenantId(), chave));
+            assertEquals("23505", exception.getSQLState());
+        }
+    }
+
+    @Test
+    @DisplayName("V12 permite mesmo UUID em tenants distintos")
+    void migrationPermiteMesmoUuidEmTenantsDistintos() throws SQLException {
+        flyway.migrate();
+
+        try (Connection connection = abrirConexao()) {
+            DadosTenant tenantA = criarTenantComUsuario(connection, "Tenant A");
+            DadosTenant tenantB = criarTenantComUsuario(connection, "Tenant B");
+            UUID chave = UUID.randomUUID();
+
+            inserirLancamentoIdempotente(connection, tenantA.tenantId(), chave);
+            inserirLancamentoIdempotente(connection, tenantB.tenantId(), chave);
+        }
+    }
+
     private Flyway configurarFlyway(String target) {
         var configuracao = Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
@@ -171,6 +219,20 @@ class LancamentoFinanceiroCancelamentoPostgresTest {
                     statement.setString(2, descricao);
                     statement.setBigDecimal(3, valor);
                     statement.setString(4, "OUTROS");
+                });
+    }
+
+    private long inserirLancamentoIdempotente(Connection connection, long tenantId, UUID chave) throws SQLException {
+        return inserirERetornarId(connection,
+                "INSERT INTO lancamentos_financeiros (tenant_id, descricao, valor, categoria, data_referencia, "
+                        + "idempotency_key, idempotency_payload_hash) VALUES (?, ?, ?, ?, CURRENT_DATE, ?, ?)",
+                statement -> {
+                    statement.setLong(1, tenantId);
+                    statement.setString(2, "Lançamento idempotente");
+                    statement.setBigDecimal(3, new BigDecimal("10.00"));
+                    statement.setString(4, "OUTROS");
+                    statement.setObject(5, chave);
+                    statement.setString(6, "b".repeat(64));
                 });
     }
 

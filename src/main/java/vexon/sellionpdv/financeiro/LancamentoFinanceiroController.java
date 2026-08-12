@@ -9,10 +9,12 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.financeiro.dto.LancamentoRequestDTO;
 import vexon.sellionpdv.financeiro.dto.LancamentoResponseDTO;
+import vexon.sellionpdv.financeiro.dto.LancamentoCriacaoResultado;
 import vexon.sellionpdv.financeiro.dto.CancelamentoLancamentoRequestDTO;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/financeiro/lancamentos")
@@ -31,8 +33,16 @@ public class LancamentoFinanceiroController {
     }
 
     @PostMapping
-    public ResponseEntity<LancamentoResponseDTO> criar(@Valid @RequestBody LancamentoRequestDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.criar(dto));
+    public ResponseEntity<LancamentoResponseDTO> criar(
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
+            @Valid @RequestBody LancamentoRequestDTO dto) {
+        LancamentoCriacaoResultado resultado = service.criar(dto, idempotencyKey);
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(
+                resultado.replayed() ? HttpStatus.OK : HttpStatus.CREATED);
+        if (resultado.replayed()) {
+            response.header("Idempotent-Replayed", "true");
+        }
+        return response.body(resultado.lancamento());
     }
 
     @PutMapping("/{id}")
