@@ -148,6 +148,7 @@ class ReciboVendaPdfServiceTest {
                 .id(1L)
                 .tenant(tenant)
                 .caixa(caixa)
+                .usuario(operador)
                 .status(StatusVenda.CONCLUIDA)
                 .formaPagamento(FormaPagamento.DINHEIRO)
                 .subtotal(new BigDecimal("20.00"))

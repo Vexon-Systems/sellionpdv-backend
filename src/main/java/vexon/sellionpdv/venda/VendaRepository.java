@@ -76,8 +76,8 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
             "ORDER BY FUNCTION('to_char', FUNCTION('timezone', 'America/Sao_Paulo', v.dataVenda), 'DD/MM/YYYY')")
     List<Object[]> obterSerieTemporalPorDia(@Param("inicio") OffsetDateTime inicio, @Param("fim") OffsetDateTime fim);
 
-    // Retorna a página de vendas trazendo o operador (Usuario do Caixa) para evitar N+1
-    @Query(value = "SELECT v FROM Venda v JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
+    // Retorna a página de vendas trazendo o autor real para evitar N+1.
+    @Query(value = "SELECT v FROM Venda v JOIN FETCH v.usuario " +
             "WHERE (:status IS NULL OR v.status = :status)",
             countQuery = "SELECT count(v) FROM Venda v WHERE (:status IS NULL OR v.status = :status)")
     Page<Venda> buscarRelatorioVendas(@Param("status") StatusVenda status, Pageable pageable);
@@ -88,7 +88,7 @@ public interface VendaRepository extends JpaRepository<Venda, Long> {
     // Modificadores são carregados lazy dentro do @Transactional do service.
     @Query("SELECT DISTINCT v FROM Venda v " +
             "JOIN FETCH v.tenant " +
-            "JOIN FETCH v.caixa c JOIN FETCH c.operadorAbertura " +
+            "JOIN FETCH v.caixa c JOIN FETCH v.usuario " +
             "LEFT JOIN FETCH v.itens i LEFT JOIN FETCH i.produto " +
             "WHERE v.id = :id")
     Optional<Venda> buscarReciboComDetalhes(@Param("id") Long id);

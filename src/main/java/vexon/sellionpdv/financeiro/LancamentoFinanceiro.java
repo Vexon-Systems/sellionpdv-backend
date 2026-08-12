@@ -3,6 +3,7 @@ package vexon.sellionpdv.financeiro;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.TenantId;
+import vexon.sellionpdv.usuario.Usuario;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -41,4 +42,19 @@ public class LancamentoFinanceiro {
     @Builder.Default
     @Column(name = "criado_em", nullable = false, updatable = false)
     private OffsetDateTime criadoEm = OffsetDateTime.now();
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private StatusLancamentoFinanceiro status = StatusLancamentoFinanceiro.ATIVO;
+
+    @Column(name = "motivo_cancelamento", columnDefinition = "text")
+    private String motivoCancelamento;
+
+    @Column(name = "data_cancelamento")
+    private OffsetDateTime dataCancelamento;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_cancelamento_id")
+    private Usuario usuarioCancelamento;
 }

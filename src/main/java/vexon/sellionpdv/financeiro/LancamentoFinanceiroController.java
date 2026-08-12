@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import vexon.sellionpdv.financeiro.dto.LancamentoRequestDTO;
 import vexon.sellionpdv.financeiro.dto.LancamentoResponseDTO;
+import vexon.sellionpdv.financeiro.dto.CancelamentoLancamentoRequestDTO;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -42,9 +43,10 @@ public class LancamentoFinanceiroController {
         return ResponseEntity.ok(service.atualizar(id, dto));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> excluir(@PathVariable Long id) {
-        service.excluir(id);
-        return ResponseEntity.noContent().build();
+    @PostMapping("/{id}/cancelamento")
+    public ResponseEntity<LancamentoResponseDTO> cancelar(
+            @PathVariable Long id,
+            @Valid @RequestBody CancelamentoLancamentoRequestDTO dto) {
+        return ResponseEntity.ok(service.cancelar(id, dto));
     }
 }

@@ -128,7 +128,7 @@ class ReciboVendaPdfServiceIntegrationTest {
         itens.add(itemSemMods(refri, 1, new BigDecimal("8.00"), new BigDecimal("8.00")));
 
         Venda venda = Venda.builder()
-                .id(1L).tenant(tenant).caixa(caixa)
+                .id(1L).tenant(tenant).caixa(caixa).usuario(operador)
                 .status(StatusVenda.CONCLUIDA).formaPagamento(FormaPagamento.CREDITO)
                 .subtotal(new BigDecimal("63.00")).descontoAplicado(BigDecimal.ZERO).totalFinal(new BigDecimal("63.00"))
                 .dataVenda(OffsetDateTime.parse("2026-06-30T14:30:00-03:00"))
@@ -146,7 +146,7 @@ class ReciboVendaPdfServiceIntegrationTest {
         ItemVenda item = itemSemMods(produto, 1, new BigDecimal("35.00"), new BigDecimal("35.00"));
 
         Venda venda = Venda.builder()
-                .id(1L).tenant(tenant).caixa(caixa)
+                .id(1L).tenant(tenant).caixa(caixa).usuario(operador)
                 .status(StatusVenda.CONCLUIDA).formaPagamento(FormaPagamento.PIX)
                 .subtotal(new BigDecimal("35.00")).descontoAplicado(BigDecimal.ZERO).totalFinal(new BigDecimal("35.00"))
                 .dataVenda(OffsetDateTime.parse("2026-06-30T14:30:00-03:00"))
@@ -196,6 +196,7 @@ class ReciboVendaPdfServiceIntegrationTest {
                 .id(1L)
                 .tenant(tenant)
                 .caixa(caixa)
+                .usuario(operador)
                 .status(StatusVenda.CONCLUIDA)
                 .formaPagamento(FormaPagamento.DINHEIRO)
                 .subtotal(new BigDecimal("57.00"))

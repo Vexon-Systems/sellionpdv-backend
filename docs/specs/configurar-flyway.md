@@ -60,9 +60,15 @@ Adicionar ao `pom.xml` (sem definir `<version>` — a versão é gerenciada pelo
 
 ## 4. Variáveis de ambiente
 
-**Nenhuma variável nova é necessária.** O Flyway reaproveita as credenciais de datasource que já existem (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD` em `application-secret.properties`, já configuradas em todos os ambientes). As demais configurações (baseline, localização das migrations) vão como propriedades fixas em `application.properties`, não como segredo por ambiente:
+Em desenvolvimento local, o Flyway reaproveita as credenciais de datasource (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). Em `staging` e `prod`, o Flyway usa uma conta de migrations distinta, configurada por `DB_MIGRATION_USERNAME` e `DB_MIGRATION_PASSWORD`; a aplicação continua usando `DB_USERNAME` e `DB_PASSWORD`.
+
+Essa separação foi adotada no SEL-SEC-009: o usuário da aplicação não pode ser o proprietário de tabelas de auditoria nem manter privilégios de `UPDATE` ou `DELETE` sobre elas. As propriedades ficam nos perfis de ambiente, e não em código Java:
 
 ```properties
+# application-prod.properties e application-staging.properties
+spring.flyway.user=${DB_MIGRATION_USERNAME}
+spring.flyway.password=${DB_MIGRATION_PASSWORD}
+
 # application.properties
 spring.flyway.enabled=true
 spring.flyway.baseline-on-migrate=true

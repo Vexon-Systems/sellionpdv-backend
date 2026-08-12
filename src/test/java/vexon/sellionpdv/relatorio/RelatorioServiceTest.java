@@ -13,6 +13,7 @@ import vexon.sellionpdv.common.exception.ResourceNotFoundException;
 import vexon.sellionpdv.financeiro.CategoriaLancamento;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiro;
 import vexon.sellionpdv.financeiro.LancamentoFinanceiroRepository;
+import vexon.sellionpdv.financeiro.StatusLancamentoFinanceiro;
 import vexon.sellionpdv.maquininha.Maquininha;
 import vexon.sellionpdv.relatorio.dto.*;
 import vexon.sellionpdv.venda.FormaPagamento;
@@ -189,7 +190,8 @@ class RelatorioServiceTest {
         /** Stub padrão: nenhum lançamento financeiro no período. Usado por RS6–RS10 e RS12. */
         private void semLancamentos() {
             when(lancamentoRepository
-                    .findByDataReferenciaBetweenOrderByDataReferenciaDesc(any(LocalDate.class), any(LocalDate.class)))
+                    .findByDataReferenciaBetweenAndStatusOrderByDataReferenciaDesc(
+                            any(LocalDate.class), any(LocalDate.class), eq(StatusLancamentoFinanceiro.ATIVO)))
                     .thenReturn(List.of());
         }
 
@@ -306,7 +308,8 @@ class RelatorioServiceTest {
             LancamentoFinanceiro folha =
                     umLancamento(CategoriaLancamento.FOLHA_PAGAMENTO, new BigDecimal("500.00"), INICIO, 2L);
             when(lancamentoRepository
-                    .findByDataReferenciaBetweenOrderByDataReferenciaDesc(any(LocalDate.class), any(LocalDate.class)))
+                    .findByDataReferenciaBetweenAndStatusOrderByDataReferenciaDesc(
+                            any(LocalDate.class), any(LocalDate.class), eq(StatusLancamentoFinanceiro.ATIVO)))
                     .thenReturn(List.of(aluguel, folha));
 
             DreResponseDTO dre = relatorioService.gerarDreGerencial(INICIO, FIM);
@@ -319,6 +322,27 @@ class RelatorioServiceTest {
             assertBD("500", dre.despesasOperacionais().get(0).total());
             assertEquals("ALUGUEL", dre.despesasOperacionais().get(1).categoria());
             assertBD("200", dre.despesasOperacionais().get(1).total());
+        }
+
+        @Test
+        @DisplayName("SEL-SEC-010 — DRE consulta somente lançamentos ativos")
+        void deve_ExcluirLancamentosCanceladosDasDespesasDoDre() {
+            Venda venda = umaVendaConcluida(new BigDecimal("100.00"), FormaPagamento.DINHEIRO);
+            when(vendaRepository.buscarVendasParaDre(any(OffsetDateTime.class), any(OffsetDateTime.class)))
+                    .thenReturn(List.of(venda));
+            LancamentoFinanceiro ativo =
+                    umLancamento(CategoriaLancamento.ALUGUEL, new BigDecimal("200.00"), INICIO, 1L);
+            when(lancamentoRepository
+                    .findByDataReferenciaBetweenAndStatusOrderByDataReferenciaDesc(
+                            any(LocalDate.class), any(LocalDate.class), eq(StatusLancamentoFinanceiro.ATIVO)))
+                    .thenReturn(List.of(ativo));
+
+            DreResponseDTO dre = relatorioService.gerarDreGerencial(INICIO, FIM);
+
+            assertBD("200", dre.totalDespesasOperacionais());
+            verify(lancamentoRepository)
+                    .findByDataReferenciaBetweenAndStatusOrderByDataReferenciaDesc(
+                            INICIO, FIM, StatusLancamentoFinanceiro.ATIVO);
         }
 
         @Test
