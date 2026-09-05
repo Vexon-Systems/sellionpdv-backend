@@ -35,6 +35,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
+                    req.requestMatchers(org.springframework.http.HttpMethod.GET, "/actuator/health").permitAll();
                     req.requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll();
 
                     req.requestMatchers(

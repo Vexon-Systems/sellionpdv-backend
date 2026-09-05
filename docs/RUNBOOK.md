@@ -24,7 +24,7 @@ Os backups são gerados automaticamente todo dia às 03:00 (horário de Brasíli
 2. Selecione o projeto de **staging**.
 3. Menu lateral → **Storage** → bucket `backups-db`.
 4. Os arquivos têm nome `backup-AAAA-MM-DD.dump`. Pegue o mais recente (ordene por data se necessário).
-5. Clique nos "..." do arquivo → **Download**.
+5. Baixe o dump e o sidecar com mesmo nome e sufixo `.sha256`. Confira a integridade antes de restaurar.
 
 Se quiser confirmar que o workflow de backup está rodando normalmente antes de precisar dele: no GitHub, aba **Actions**, workflow "Backup diário do banco de produção" — deve ter uma execução verde por dia. Se as últimas execuções estiverem falhando (❌ vermelho), o backup mais recente disponível pode ser mais antigo que 1 dia.
 
@@ -33,6 +33,8 @@ Se quiser confirmar que o workflow de backup está rodando normalmente antes de 
 ## 3. Passo a passo de restauração
 
 **Pré-requisito**: ter o Docker instalado na máquina de quem for executar (`docker --version` deve funcionar no terminal). Se não tiver, é possível instalar o [Docker Desktop](https://www.docker.com/products/docker-desktop/) gratuitamente antes de continuar.
+
+Antes de tocar no destino, valide o checksum: em Bash, `sha256sum -c backup-AAAA-MM-DD.dump.sha256`; em PowerShell, compare `Get-FileHash -Algorithm SHA256` com o sidecar. Se diferir, interrompa. Para ensaio local, use diretamente o script da seção 5.
 
 ### Passo 1 — Confirmar a connection string do banco de destino
 
@@ -50,7 +52,7 @@ Num terminal, na pasta onde o arquivo `backup-AAAA-MM-DD.dump` foi baixado:
 docker run --rm -v "$(pwd):/backup" postgres:17-alpine \
   pg_restore \
   --dbname="<connection-string-do-passo-1>" \
-  --clean --if-exists --no-owner --no-privileges \
+  --clean --if-exists --exit-on-error --no-owner --no-privileges \
   /backup/backup-AAAA-MM-DD.dump
 ```
 
@@ -65,11 +67,11 @@ docker run --rm postgres:17-alpine \
   psql "<connection-string-do-passo-1>" -c "SELECT count(*) FROM usuarios;"
 ```
 
-Deve retornar um número maior que zero, compatível com o que existia antes do incidente.
+Além dos usuários, execute `scripts/conferir-restore.sql` para conferir vendas, caixas, lançamentos e movimentações por loja/status e comparar valores com os fechamentos da data do backup. Registrar diferenças; contagem maior que zero não comprova recuperação financeira.
 
 ### Passo 5 — Reiniciar a aplicação
 
-No painel do Render, no serviço afetado (produção ou staging), clique em **Manual Deploy → Deploy latest commit** (ou o botão de restart equivalente), pra garantir que a aplicação reconecta limpa no banco recém-restaurado.
+No painel do Render, no serviço afetado (produção ou staging), clique em **Restart service** (mantendo o SHA conhecido e compatível com o schema restaurado), pra garantir que a aplicação reconecta limpa no banco recém-restaurado.
 
 ---
 
@@ -81,4 +83,22 @@ _Eduardo: entrer em contato com ele se for necessário suporte extra._
 
 ## 5. Testando este runbook sem risco
 
-Pra validar que o processo funciona sem tocar em produção, é possível seguir os mesmos passos 1-4 restaurando num banco de teste local (`docker run -e POSTGRES_PASSWORD=teste -p 5433:5432 postgres:17-alpine`) em vez de uma connection string real do Supabase. Isso foi feito como parte da validação inicial deste runbook — ver `docs/specs/configurar-backup.md`, seção 6.
+Execute em PowerShell, na raiz do backend, com Docker disponível:
+
+```powershell
+./scripts/testar-restore.ps1 -Dump C:/backups/backup-AAAA-MM-DD.dump -Responsavel 'Nome' -Relatorio C:/backups/ensaio-AAAA-MM-DD.txt
+```
+
+O script exige checksum, cria PostgreSQL 17 descartável sem rede nem portas,
+restaura com interrupção na primeira falha e registra contagens e totais.
+O container e seu volume temporário são removidos ao concluir, inclusive em erro.
+O dump original é preservado. Proteja o relatório: contém dados agregados das lojas.
+
+Compare o relatório com o fechamento correspondente ao backup e registre o
+resultado da reconciliação. Registrar responsável, duração, SHA256, data do backup
+e links privados de evidência. Sem essa comparação, o ensaio segue pendente.
+
+A afirmação histórica de restore na Spec inicial não é evidência atual de
+recuperação. Antes do piloto, executar com backup real recente e documentar.
+Conferir no GitHub Actions a execução diária e a notificação de falha entregue
+ao responsável; retenção de 14 cópias não garante que a cópia recente foi gerada.

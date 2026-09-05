@@ -4,10 +4,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import io.sentry.Sentry;
+import io.sentry.SentryLevel;
 import vexon.sellionpdv.common.exception.BusinessException;
 
 @Component
 public class SupabaseImagemStorage implements ImagemStorage {
+
+    private static final Logger log = LoggerFactory.getLogger(SupabaseImagemStorage.class);
 
     private final RestClient restClient = RestClient.create();
 
@@ -36,8 +43,16 @@ public class SupabaseImagemStorage implements ImagemStorage {
 
             return "%s/storage/v1/object/public/%s/%s".formatted(storageUrl, bucket, nomeArquivo);
         } catch (Exception e) {
-            // SAST-22: encadeia a causa original — mensagem ao cliente continua genérica,
-            // mas a causa real (ex.: service-role-key expirada) fica visível no Sentry/log.
+            String status = e instanceof RestClientResponseException response
+                    ? Integer.toString(response.getStatusCode().value()) : "unavailable";
+            log.error("Falha operacional: storage.upload; http.status={}; causa={}", status, e.getClass().getSimpleName());
+            Sentry.withScope(scope -> {
+                scope.setTag("operation", "storage.upload");
+                scope.setTag("http.status_code", status);
+                Sentry.captureMessage("Falha operacional: storage.upload", SentryLevel.ERROR);
+            });
+            // Preserva o contrato de negócio e a causa; a telemetria acima contém
+            // somente contexto/status, sem serializar a exceção HTTP do provedor.
             throw new BusinessException("Erro ao enviar imagem para o armazenamento. Tente novamente.", e);
         }
     }
