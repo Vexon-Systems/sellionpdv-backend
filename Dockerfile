@@ -1,7 +1,8 @@
 # =============================================================
 # Stage 1 — Build
 # Usa a imagem oficial do Maven com JDK 21 para compilar o JAR.
-# A suite de testes é ignorada (requer ajuste separado).
+# Os testes e a cobertura executam no CI (mvn verify, com Docker disponível).
+# Implantar somente o SHA final aprovado pelo CI; este build só empacota.
 # =============================================================
 FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
