@@ -51,7 +51,7 @@ public final class AuthTestFixtures {
         return new LoginResponseDTO(
                 TOKEN_PADRAO,
                 REFRESH_TOKEN_PADRAO,
-                new UsuarioAuthDTO(1L, "Operador", "operador@test.com", "ROLE_ADMIN")
+                new UsuarioAuthDTO(1L, "Operador", "operador@test.com", "ROLE_ADMIN", false)
         );
     }
 }

@@ -78,10 +78,11 @@ class SecurityFilterRoleAtualTest {
         assertNull(TenantContext.getCurrentTenant());
     }
 
-    @Test
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"GET,/api/caixas,403,false", "GET,/api/usuarios/me,403,false", "PUT,/api/usuarios/me/senha,200,true", "PUT,/api/usuarios/2/senha,403,false"})
     @DisplayName("conta com senha temporária só acessa a troca de senha")
-    void deveBloquearRecursosEnquantoTrocaSenhaObrigatoria() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/caixas");
+    void deveBloquearRecursosEnquantoTrocaSenhaObrigatoria(String method, String path, int status, boolean executada) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader("Authorization", "Bearer jwt-temporario");
         MockHttpServletResponse response = new MockHttpServletResponse();
         Usuario usuario = Usuario.builder()
@@ -95,7 +96,7 @@ class SecurityFilterRoleAtualTest {
         AtomicBoolean cadeiaExecutada = new AtomicBoolean(false);
         securityFilter.doFilter(request, response, (req, res) -> cadeiaExecutada.set(true));
 
-        assertEquals(403, response.getStatus());
-        assertEquals(false, cadeiaExecutada.get());
+        assertEquals(status, response.getStatus());
+        assertEquals(executada, cadeiaExecutada.get());
     }
 }
