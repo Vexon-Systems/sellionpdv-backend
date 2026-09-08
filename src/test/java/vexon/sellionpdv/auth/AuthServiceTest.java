@@ -41,6 +41,17 @@ class AuthServiceTest {
     private Tenant tenant;
     private Usuario usuario;
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void loginERefreshInformamTrocaObrigatoria(boolean obrigatoria) {
+        usuario.setDeveTrocarSenha(obrigatoria);
+        when(usuarioRepository.findByEmailWithTenant("operador@test.com")).thenReturn(Optional.of(usuario));
+        when(passwordEncoder.matches("senha123", usuario.getSenhaHash())).thenReturn(true);
+        when(refreshTokenService.validarERevogar("refresh")).thenReturn(RefreshToken.builder().usuario(usuario).build());
+        assertEquals(obrigatoria, authService.realizarLogin(umLoginRequestDTO()).usuario().deveTrocarSenha());
+        assertEquals(obrigatoria, authService.renovarToken(new RefreshRequestDTO("refresh")).usuario().deveTrocarSenha());
+    }
+
     @BeforeEach
     void setUp() {
         tenant = umTenant();

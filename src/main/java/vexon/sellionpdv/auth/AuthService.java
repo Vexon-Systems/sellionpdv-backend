@@ -68,7 +68,8 @@ public class AuthService {
                 usuario.getId(),
                 usuario.getNome(),
                 usuario.getEmail(),
-                usuario.getRole()
+                usuario.getRole(),
+                Boolean.TRUE.equals(usuario.getDeveTrocarSenha())
         );
 
         String accessToken = tokenService.gerarToken(usuario);

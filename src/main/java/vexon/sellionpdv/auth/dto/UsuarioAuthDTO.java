@@ -4,5 +4,6 @@ public record UsuarioAuthDTO(
         Long id,
         String nome,
         String email,
-        String role
+        String role,
+        boolean deveTrocarSenha
 ) {}
